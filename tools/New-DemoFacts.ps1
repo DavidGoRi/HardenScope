@@ -43,6 +43,32 @@ $devices = [ordered] @{
     }
 }
 
+# Nine more computers with random gaps, always the same thanks to the fixed seed.
+# Each one gets a "hygiene" level: the chance that each setting is wrong.
+$random = New-Object -TypeName System.Random -ArgumentList 2026
+$gaps = [ordered] @{
+    'updates.daysSinceLastUpdate' = { $random.Next(50, 160) }; 'reboot.pending' = { $true }; 'secureboot.enabled' = { $false }
+    'bitlocker.systemDrive' = { $false }; 'antivirus.upToDate' = { $false }; 'defender.tamperProtected' = { $false }
+    'autorun.disabledAllDrives' = { $false }; 'powershell.v2Present' = { $true }; 'firewall.inboundBlocked' = { $false }
+    'smb.signingRequired' = { $false }; 'llmnr.disabled' = { $false }; 'services.remoteRegistry' = { 'Manual' }
+    'accounts.localAdminCount' = { $random.Next(3, 7) }; 'policy.minPasswordLength' = { 8 }; 'policy.lockoutThreshold' = { 0 }
+    'screen.lockTimeoutSecs' = { 0 }; 'lsa.protected' = { $false }; 'ntlm.level' = { 3 }
+}
+# Serious gaps are rarer
+$rareGaps = [ordered] @{
+    'firewall.public' = { $false }; 'smb.v1Enabled' = { $true }; 'rdp.nla' = { $false }; 'accounts.guestEnabled' = { $true }
+    'accounts.builtinAdminEnabled' = { $true }; 'wdigest.cleartext' = { $true }; 'winlogon.autoLogon' = { $true }
+}
+$names = 'WS-FIN-021', 'WS-HR-003', 'WS-HR-011', 'LT-SALES-04', 'LT-SALES-15', 'WS-ENG-102', 'WS-ENG-117', 'LT-MGMT-02', 'WS-RECEP-01'
+foreach ($name in $names) {
+    $hygiene = 0.05 + $random.NextDouble() * 0.45
+    $overrides = @{}
+    foreach ($key in $gaps.Keys) { if ($random.NextDouble() -lt $hygiene) { $overrides[$key] = & $gaps[$key] } }
+    foreach ($key in $rareGaps.Keys) { if ($random.NextDouble() -lt ($hygiene / 3)) { $overrides[$key] = & $rareGaps[$key] } }
+    if ($name -like 'LT-*') { $overrides['os.caption'] = 'Microsoft Windows 11 Pro' }
+    $devices[$name] = $overrides
+}
+
 if (-not (Test-Path -LiteralPath $OutputPath)) { New-Item -ItemType Directory -Path $OutputPath | Out-Null }
 foreach ($name in $devices.Keys) {
     $facts = [ordered] @{}

@@ -6,6 +6,10 @@
 
 ![HardenScope report of a fictitious computer](docs/report.png)
 
+Audit a whole office at once over WinRM and see which fixes help the most computers:
+
+![HardenScope fleet report of 12 fictitious computers](docs/fleet.png)
+
 ## Why
 
 Most companies have no clear picture of how their computers are configured until something goes wrong. The NIS2 directive and cyber insurers now ask for that picture. HardenScope answers "how exposed is this computer, and what do I fix first?" in a few seconds, without installing anything and without changing a single setting.
@@ -18,6 +22,7 @@ Most companies have no clear picture of how their computers are configured until
 - **Read-only and no administrator rights needed:** the collector only reads the registry, CIM and built-in cmdlets. A test checks that `src/Facts.ps1` contains no command that could change the computer.
 - **Works in any language of Windows:** `net accounts` is parsed by position, not by its translated labels.
 - **Baseline as data:** the rules live in [`config/baseline.json`](config/baseline.json). Changing a threshold or adding a rule does not need any code.
+- **Whole fleets over WinRM:** `-ComputerName` or `-ComputerListPath` audits many computers in parallel without installing anything on them (the collector code travels with the request). The fleet report ranks the computers and lists the checks that fail on most of them, the ones worth fixing by Group Policy. Unreachable computers are listed with the reason.
 - **Ready for automation:** `-FailOn high` returns exit code 2 when a check of that severity fails, so it can run in a scheduled task or a pipeline. Every run also leaves a JSON record.
 
 ## Quick start
@@ -30,20 +35,30 @@ cd HardenScope
 powershell -ExecutionPolicy Bypass -File .\HardenScope.ps1 -Open
 ```
 
-Try it with the fictitious demo computers, without reading your own:
+Audit several computers over WinRM (remoting must be enabled on them; an account in their Administrators group):
 
 ```powershell
-.\HardenScope.ps1 -FactsPath .\demo\WS-SALES-07.json -Open    # grade C
-.\HardenScope.ps1 -FactsPath .\demo\LT-OPS-22.json -Open      # grade F
-.\HardenScope.ps1 -FactsPath .\demo\WS-FIN-014.json -Open     # grade A
+.\HardenScope.ps1 -ComputerName PC01, PC02, PC03 -Credential (Get-Credential CORP\it.admin) -Open
+.\HardenScope.ps1 -ComputerListPath .\computers.txt -FailOn critical
+```
+
+Try it with the 12 fictitious demo computers, without reading any real one:
+
+```powershell
+.\HardenScope.ps1 -FactsPath .\demo\*.json -Open              # fleet report
+.\HardenScope.ps1 -FactsPath .\demo\WS-SALES-07.json -Open    # one computer, grade C
 ```
 
 | Parameter | What it does |
 |---|---|
-| `-Open` | Opens the HTML report when it finishes |
+| `-ComputerName <names>` | Computers to audit over WinRM (`localhost` is audited locally) |
+| `-ComputerListPath <txt>` | One computer per line; `#` starts a comment |
+| `-Credential`, `-ThrottleLimit` | Account for WinRM / computers contacted at the same time (32) |
+| `-FleetFrom <folder>` | Rebuilds the fleet report from the newest record of every computer in a folder |
+| `-Open` | Opens the HTML report (the fleet report when there are several computers) |
 | `-Language en\|es` | Console language (by default, the language of Windows) |
-| `-FailOn none\|low\|medium\|high\|critical` | Exit code 2 when a check of that severity or higher fails |
-| `-FactsPath <json>` | Evaluates saved facts instead of this computer |
+| `-FailOn none\|low\|medium\|high\|critical` | Exit code 2 when a check of that severity or higher fails on any computer |
+| `-FactsPath <json>` | Evaluates saved facts instead of a computer (wildcards allowed) |
 | `-BaselinePath <json>` | Uses another baseline |
 | `-OutputPath <folder>` | Where the reports go (by default `output\`) |
 | `-Quiet`, `-PassThru` | No console output / return the record as an object |
@@ -54,6 +69,8 @@ Try it with the fictitious demo computers, without reading your own:
 src/Facts.ps1      reads the computer  ->  facts  { 'firewall.public': true, 'policy.minPasswordLength': 8, ... }
 src/Rules.ps1      facts + config/baseline.json  ->  Pass / Fail / Unknown / NotApplicable  ->  score
 src/Report.ps1     JSON record  +  HTML report (src/report-template.html)
+src/Remote.ps1     sends src/Facts.ps1 over WinRM and gets the facts back as JSON
+src/Fleet.ps1      many records  ->  fleet summary  +  fleet report (src/fleet-template.html)
 ```
 
 A rule compares one fact with a value (`eq`, `ne`, `ge`, `le`, `in`, `between`) and can depend on another fact. For example, NLA is only checked when Remote Desktop is on:
@@ -108,7 +125,7 @@ A fact that cannot be read (because a cmdlet is missing or needs administrator r
 
 ## Tests
 
-180 Pester tests and PSScriptAnalyzer run on every push in GitHub Actions (Windows PowerShell 5.1). They cover the rule engine, the parsers (`net accounts` in English and Spanish, the Security Center product state), the collectors with mocks, a live run on the CI computer, the HTML report and the exit codes.
+207 Pester tests and PSScriptAnalyzer run on every push in GitHub Actions (Windows PowerShell 5.1). They cover the rule engine, the parsers (`net accounts` in English and Spanish, the Security Center product state), the collectors with mocks, a live run on the CI computer, remoting with mocks and a real WinRM run against the CI computer, the fleet summary, the HTML reports and the exit codes.
 
 ```powershell
 Invoke-Pester -Path .\tests
@@ -116,8 +133,8 @@ Invoke-Pester -Path .\tests
 
 ## Roadmap
 
-1. ~~Local audit, baseline, score and HTML report~~ (this version)
-2. Several computers at once over WinRM and a fleet report
+1. ~~Local audit, baseline, score and HTML report~~
+2. ~~Several computers at once over WinRM and a fleet report~~ (this version)
 3. Changes between two runs (what got better, what got worse)
 4. Integration with [PCScope](https://github.com/DavidGoRi/PCScope) (computer list) and [DeskScope](https://github.com/DavidGoRi/DeskScope) (a ticket for every critical failure)
 5. Version 1.0.0 with a live demo

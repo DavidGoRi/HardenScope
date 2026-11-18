@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HardenScope fleet</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #5d6673; --line: #e2e5ea;
+  --accent: #2f6fdf; --pass: #1f8a4c; --fail: #c8372d; --unknown: #8a8f98;
+  --critical: #b3261e; --high: #d9622b; --medium: #c99a06; --low: #4f7fb8;
+  --gA: #1f8a4c; --gB: #5fa83a; --gC: #c99a06; --gD: #d9622b; --gF: #c8372d;
+  --code: #f0f2f5; --shadow: 0 1px 2px rgba(0,0,0,.06); --hover: #f0f3f8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --panel: #1a1e24; --text: #e7eaee; --muted: #9aa3ae; --line: #2b313a;
+    --accent: #6c9cff; --pass: #4cc283; --fail: #ff6b5e; --unknown: #8a919c;
+    --critical: #ff6b5e; --high: #ff9a5c; --medium: #f0c445; --low: #7fa8de;
+    --gA: #4cc283; --gB: #8fcf5a; --gC: #f0c445; --gD: #ff9a5c; --gF: #ff6b5e;
+    --code: #23282f; --shadow: none; --hover: #222831;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418; --panel: #1a1e24; --text: #e7eaee; --muted: #9aa3ae; --line: #2b313a;
+  --accent: #6c9cff; --pass: #4cc283; --fail: #ff6b5e; --unknown: #8a919c;
+  --critical: #ff6b5e; --high: #ff9a5c; --medium: #f0c445; --low: #7fa8de;
+  --gA: #4cc283; --gB: #8fcf5a; --gC: #f0c445; --gD: #ff9a5c; --gF: #ff6b5e;
+  --code: #23282f; --shadow: none; --hover: #222831;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; }
+.brand svg { width: 28px; height: 28px; color: var(--accent); }
+.sub { color: var(--muted); font-size: 14px; }
+button { font: inherit; color: inherit; }
+.seg button { background: var(--panel); border: 1px solid var(--line); padding: 4px 10px; cursor: pointer; }
+.seg button:first-child { border-radius: 6px 0 0 6px; }
+.seg button:last-child { border-radius: 0 6px 6px 0; }
+.seg button + button { border-left: none; }
+.seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 16px 18px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile .label { color: var(--muted); font-size: 13px; }
+.tile .value { font-size: 30px; font-weight: 700; line-height: 1.2; }
+.tile .hint { color: var(--muted); font-size: 12px; }
+.dist { margin-bottom: 16px; }
+.dist h2, section h2 { font-size: 17px; margin: 0 0 10px; }
+.stack { display: flex; height: 28px; border-radius: 6px; overflow: hidden; background: var(--line); }
+.stack span { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; min-width: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; align-items: start; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12.5px; padding: 6px 8px; border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; white-space: nowrap; }
+th[aria-sort="ascending"]::after { content: " \25B2"; font-size: 10px; }
+th[aria-sort="descending"]::after { content: " \25BC"; font-size: 10px; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tbody tr:hover { background: var(--hover); }
+td.num, th.num { text-align: right; }
+.grade { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 5px; color: #fff; font-weight: 700; font-size: 15px; line-height: 1; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.os { color: var(--muted); font-size: 12px; }
+.pill { display: inline-block; min-width: 22px; text-align: center; border-radius: 999px; font-size: 12px; font-weight: 600; padding: 0 6px; color: #fff; }
+.zero { color: var(--muted); }
+.fail { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; background: var(--panel); }
+.fail summary { list-style: none; cursor: pointer; padding: 9px 12px; }
+.fail summary::-webkit-details-marker { display: none; }
+.fail .top { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.fail .ttl { font-weight: 600; font-size: 14px; }
+.fail .meta { color: var(--muted); font-size: 12px; }
+.sev { font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: #fff; border-radius: 4px; padding: 1px 6px; }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.bar span { display: block; height: 100%; background: var(--fail); }
+.fail .body { padding: 0 12px 12px; font-size: 13.5px; }
+.fail .body p { margin: 6px 0; }
+code { display: block; background: var(--code); border-radius: 6px; padding: 7px 9px; font: 12px/1.45 Consolas, monospace; overflow-wrap: anywhere; }
+.names { color: var(--muted); }
+.unreach { margin-top: 16px; }
+.unreach li { margin: 2px 0; }
+footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: center; }
+@media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .hide-sm { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>HardenScope · <span data-i18n="fleet"></span></span>
+      </div>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="seg" role="group" aria-label="Language">
+      <button type="button" data-lang="en">EN</button><button type="button" data-lang="es">ES</button>
+    </div>
+  </header>
+
+  <section class="tiles" id="tiles"></section>
+
+  <section class="panel dist">
+    <h2 data-i18n="distribution"></h2>
+    <div class="stack" id="stack"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <div class="cols">
+    <section class="panel">
+      <h2 data-i18n="computers"></h2>
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="unreach" id="unreach"></div>
+    </section>
+    <section>
+      <h2 data-i18n="topFailures"></h2>
+      <div class="sub" style="margin-bottom:10px" data-i18n="topHint"></div>
+      <div id="failing"></div>
+    </section>
+  </div>
+  <footer id="footer"></footer>
+</div>
+
+<script id="hs-data" type="application/json">/*__DATA__*/null</script>
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById('hs-data').textContent);
+  var I18N = {
+    en: {
+      fleet: 'fleet', distribution: 'Grades', computers: 'Computers', topFailures: 'Most common failures',
+      topHint: 'Fixing these by Group Policy improves the most computers at once.',
+      tComputers: 'Computers audited', tAverage: 'Average score', tCritical: 'With critical failures', tUnreach: 'Not reachable',
+      outOf: 'out of 100', hCritical: 'need attention first', hUnreach: 'see the list below the table',
+      name: 'Computer', score: 'Score', grade: 'Grade', crit: 'Critical', colHigh: 'High', failed: 'Failed', high: 'High',
+      critical: 'Critical', medium: 'Medium', low: 'Low',
+      onN: 'fails on {n} of {t}', fix: 'Fix', command: 'Command', affected: 'Affected computers',
+      unreachTitle: 'Could not be audited', none: 'No check fails on any computer.',
+      footer: 'Read-only audit: HardenScope did not change anything on these computers. Generated by HardenScope {v}.',
+      generated: 'Generated {d}'
+    },
+    es: {
+      fleet: 'flota', distribution: 'Notas', computers: 'Equipos', topFailures: 'Fallos más repetidos',
+      topHint: 'Arreglarlos por directiva de grupo mejora más equipos de una vez.',
+      tComputers: 'Equipos auditados', tAverage: 'Nota media', tCritical: 'Con fallos críticos', tUnreach: 'Sin conexión',
+      outOf: 'sobre 100', hCritical: 'hay que atenderlos primero', hUnreach: 'mira la lista bajo la tabla',
+      name: 'Equipo', score: 'Nota', grade: 'Letra', crit: 'Críticos', colHigh: 'Altos', failed: 'Fallos', high: 'Alta',
+      critical: 'Crítica', medium: 'Media', low: 'Baja',
+      onN: 'falla en {n} de {t}', fix: 'Arreglo', command: 'Comando', affected: 'Equipos afectados',
+      unreachTitle: 'No se pudieron auditar', none: 'Ninguna comprobación falla en ningún equipo.',
+      footer: 'Auditoría de solo lectura: HardenScope no ha cambiado nada en estos equipos. Generado por HardenScope {v}.',
+      generated: 'Generado el {d}'
+    }
+  };
+  var SEV = ['critical', 'high', 'medium', 'low'];
+  var COLUMNS = [
+    { key: 'name', label: 'name' }, { key: 'score', label: 'score', num: true }, { key: 'grade', label: 'grade' },
+    { key: 'critical', label: 'crit', num: true }, { key: 'high', label: 'colHigh', num: true, sm: true }, { key: 'failed', label: 'failed', num: true, sm: true }
+  ];
+  var sortKey = 'score', sortDir = 1;
+  var lang = '';
+  try { lang = localStorage.getItem('hs-lang') || ''; } catch (e) { lang = ''; }
+  var qs = /[?&]lang=(en|es)/.exec(location.search);
+  if (qs) lang = qs[1];
+  if (lang !== 'en' && lang !== 'es') lang = (navigator.language || '').slice(0, 2) === 'es' ? 'es' : 'en';
+  var theme = /[?&]theme=(light|dark)/.exec(location.search);
+  if (theme) document.documentElement.setAttribute('data-theme', theme[1]);
+
+  function t(key, vars) { var s = I18N[lang][key] || key; for (var k in vars || {}) s = s.replace('{' + k + '}', vars[k]); return s; }
+  function tr(o) { return o ? (o[lang] || o.en || '') : ''; }
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function $(id) { return document.getElementById(id); }
+  function gradeBox(g) { return g ? '<span class="grade" style="background:var(--g' + g + ')">' + esc(g) + '</span>' : '-'; }
+  function value(c, key) {
+    if (key === 'critical' || key === 'high') return c.failedBySeverity ? (c.failedBySeverity[key] || 0) : 0;
+    return c[key];
+  }
+  function pill(n, sev) { return n > 0 ? '<span class="pill" style="background:var(--' + sev + ')">' + n + '</span>' : '<span class="zero">0</span>'; }
+
+  function render() {
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach(function (el) { el.textContent = t(el.getAttribute('data-i18n')); });
+    document.querySelectorAll('[data-lang]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-lang') === lang); });
+    var s = data.summary, total = s.computers;
+    $('sub').textContent = t('generated', { d: new Date(data.generatedAt).toLocaleString(lang === 'es' ? 'es-ES' : 'en-GB') });
+    var tiles = [
+      [t('tComputers'), total, ''],
+      [t('tAverage'), s.averageScore === null ? '-' : s.averageScore, t('outOf')],
+      [t('tCritical'), s.withCriticalFailures, s.withCriticalFailures ? t('hCritical') : ''],
+      [t('tUnreach'), s.unreachable, s.unreachable ? t('hUnreach') : '']
+    ];
+    $('tiles').innerHTML = tiles.map(function (x) { return '<div class="panel tile"><div class="label">' + esc(x[0]) + '</div><div class="value">' + esc(x[1]) + '</div><div class="hint">' + esc(x[2]) + '</div></div>'; }).join('');
+
+    var grades = ['A', 'B', 'C', 'D', 'F'];
+    $('stack').innerHTML = grades.map(function (g) {
+      var n = s.grades[g] || 0;
+      return n ? '<span style="flex:' + n + ';background:var(--g' + g + ')" title="' + g + ': ' + n + '">' + g + ' · ' + n + '</span>' : '';
+    }).join('');
+    $('legend').innerHTML = grades.map(function (g) { return '<span><i style="background:var(--g' + g + ')"></i>' + g + ': ' + (s.grades[g] || 0) + '</span>'; }).join('');
+
+    $('thead').innerHTML = COLUMNS.map(function (c) {
+      var sort = c.key === sortKey ? (sortDir > 0 ? 'ascending' : 'descending') : 'none';
+      return '<th data-key="' + c.key + '" aria-sort="' + sort + '" class="' + (c.num ? 'num ' : '') + (c.sm ? 'hide-sm' : '') + '">' + esc(t(c.label)) + '</th>';
+    }).join('');
+    var rows = data.computers.slice().sort(function (a, b) {
+      var x = value(a, sortKey), y = value(b, sortKey);
+      if (x === null || x === undefined) x = sortDir > 0 ? Infinity : -Infinity;
+      if (y === null || y === undefined) y = sortDir > 0 ? Infinity : -Infinity;
+      if (typeof x === 'string') return sortDir * x.localeCompare(y);
+      return sortDir * (x - y) || a.name.localeCompare(b.name);
+    });
+    $('rows').innerHTML = rows.map(function (c) {
+      var name = c.report ? '<a href="' + encodeURI(c.report) + '?lang=' + lang + '">' + esc(c.name) + '</a>' : esc(c.name);
+      return '<tr><td>' + name + '<div class="os">' + esc(c.os) + '</div></td><td class="num"><strong>' + esc(c.score === null ? '-' : c.score) + '</strong></td><td>' + gradeBox(c.grade) +
+        '</td><td class="num">' + pill(value(c, 'critical'), 'critical') + '</td><td class="num hide-sm">' + pill(value(c, 'high'), 'high') + '</td><td class="num hide-sm">' + esc(c.failed) + '</td></tr>';
+    }).join('');
+    $('unreach').innerHTML = data.unreachable.length ? '<h2>' + esc(t('unreachTitle')) + '</h2><ul>' + data.unreachable.map(function (u) { return '<li><strong>' + esc(u.name) + '</strong> <span class="os">' + esc(u.message) + '</span></li>'; }).join('') + '</ul>' : '';
+
+    $('failing').innerHTML = data.failing.length ? data.failing.map(function (f) {
+      var pct = total ? Math.round(100 * f.failedCount / total) : 0;
+      return '<details class="fail"><summary><div class="top"><span class="ttl">' + esc(tr(f.title)) + '</span><span class="sev" style="background:var(--' + f.severity + ')">' + esc(t(f.severity)) + '</span></div>' +
+        '<div class="meta">' + esc(f.id) + ' · ' + esc(t('onN', { n: f.failedCount, t: total })) + '</div><div class="bar"><span style="width:' + pct + '%"></span></div></summary>' +
+        '<div class="body"><p><strong>' + esc(t('fix')) + ':</strong> ' + esc(tr(f.fix)) + '</p>' + (f.command ? '<code>' + esc(f.command) + '</code>' : '') +
+        '<p class="names"><strong>' + esc(t('affected')) + ':</strong> ' + f.failedOn.map(esc).join(', ') + '</p></div></details>';
+    }).join('') : '<div class="panel sub">' + esc(t('none')) + '</div>';
+    $('footer').textContent = t('footer', { v: data.version });
+  }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-lang]');
+    if (b) { lang = b.getAttribute('data-lang'); try { localStorage.setItem('hs-lang', lang); } catch (err) { /* private mode */ } render(); return; }
+    var th = e.target.closest('th[data-key]');
+    if (th) { var k = th.getAttribute('data-key'); if (k === sortKey) sortDir = -sortDir; else { sortKey = k; sortDir = (k === 'critical' || k === 'high' || k === 'failed') ? -1 : 1; } render(); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

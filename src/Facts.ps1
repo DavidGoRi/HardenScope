@@ -76,11 +76,19 @@ function Get-HSSystemFact {
 function Get-HSBitLockerFact {
     # The shell property works without administrator rights (Get-BitLockerVolume
     # does not). 1 = on, 3 = encrypting, 6 = on and locked; 2/5 = off/suspended.
-    $drive = "$env:SystemDrive\"
-    $shell = New-Object -ComObject Shell.Application
-    $value = $shell.NameSpace($drive).Self.ExtendedProperty('System.Volume.BitLockerProtection')
-    if ($null -eq $value) { return @{ 'bitlocker.systemDrive' = $null } }
-    return @{ 'bitlocker.systemDrive' = (@(1, 3, 6) -contains [int] $value) }
+    # Over WinRM the shell is not always available, but the session runs as an
+    # administrator, so Get-BitLockerVolume is the fallback.
+    $value = $null
+    try {
+        $shell = New-Object -ComObject Shell.Application
+        $value = $shell.NameSpace("$env:SystemDrive\").Self.ExtendedProperty('System.Volume.BitLockerProtection')
+    }
+    catch { $value = $null }
+    if ($null -ne $value) { return @{ 'bitlocker.systemDrive' = (@(1, 3, 6) -contains [int] $value) } }
+    $volume = $null
+    try { $volume = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop } catch { $volume = $null }
+    if ($null -ne $volume) { return @{ 'bitlocker.systemDrive' = ([string] $volume.ProtectionStatus -eq 'On') } }
+    return @{ 'bitlocker.systemDrive' = $null }
 }
 
 function Get-HSDefenseFact {

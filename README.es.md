@@ -6,6 +6,10 @@
 
 ![Informe de HardenScope de un equipo ficticio](docs/es/report.png)
 
+Audita una oficina entera por WinRM y mira qué arreglos ayudan a más equipos:
+
+![Informe de flota de HardenScope con 12 equipos ficticios](docs/es/fleet.png)
+
 ## Para qué sirve
 
 La mayoría de las empresas no sabe bien cómo están configurados sus equipos hasta que pasa algo. La directiva NIS2 y las aseguradoras ya lo piden. HardenScope responde en unos segundos a "¿cuánto riesgo tiene este equipo y qué arreglo primero?", sin instalar nada y sin cambiar ningún ajuste.
@@ -18,6 +22,7 @@ La mayoría de las empresas no sabe bien cómo están configurados sus equipos h
 - **Solo lectura y sin permisos de administrador:** un test comprueba que el recolector no contiene ningún comando que pueda cambiar el equipo.
 - **Funciona en cualquier idioma de Windows.**
 - **La línea base son datos:** las reglas están en [`config/baseline.json`](config/baseline.json).
+- **Flotas enteras por WinRM:** `-ComputerName` o `-ComputerListPath` audita muchos equipos en paralelo sin instalarles nada. El informe de la flota ordena los equipos y lista los fallos que más se repiten, los que conviene arreglar por directiva de grupo.
 - **Preparado para automatizar:** `-FailOn high` devuelve el código 2 si falla algo de esa gravedad.
 
 ## Uso
@@ -28,10 +33,16 @@ cd HardenScope
 powershell -ExecutionPolicy Bypass -File .\HardenScope.ps1 -Open -Language es
 ```
 
-Con los equipos de demostración (ficticios):
+Varios equipos por WinRM:
 
 ```powershell
-.\HardenScope.ps1 -FactsPath .\demo\WS-SALES-07.json -Open -Language es
+.\HardenScope.ps1 -ComputerListPath .\equipos.txt -Credential (Get-Credential CORP\it.admin) -Open -Language es
+```
+
+Con los 12 equipos de demostración (ficticios):
+
+```powershell
+.\HardenScope.ps1 -FactsPath .\demo\*.json -Open -Language es
 ```
 
 ## Comprobaciones
@@ -74,8 +85,8 @@ Con los equipos de demostración (ficticios):
 
 ## Hoja de ruta
 
-1. ~~Auditoría local, línea base, nota e informe HTML~~ (esta versión)
-2. Varios equipos a la vez por WinRM e informe de la flota
+1. ~~Auditoría local, línea base, nota e informe HTML~~
+2. ~~Varios equipos a la vez por WinRM e informe de la flota~~ (esta versión)
 3. Cambios entre dos ejecuciones
 4. Integración con PCScope y DeskScope (un ticket por cada fallo crítico)
 5. Versión 1.0.0 con demo en vivo

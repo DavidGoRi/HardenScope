@@ -24,6 +24,28 @@ Describe 'HardenScope.ps1 with saved facts' {
         Test-Path $run.JsonPath | Should -BeTrue
     }
 
+    It 'builds a fleet report when -FactsPath matches several files' {
+        $run = & $entryPoint -FactsPath (Join-Path $repoRoot 'demo\*.json') -OutputPath (Join-Path $TestDrive 'fleet') -Quiet -PassThru
+        $demoCount = @(Get-ChildItem (Join-Path $repoRoot 'demo') -Filter '*.json').Count
+        $run.Computers | Should -HaveCount $demoCount
+        $run.Fleet.summary.computers | Should -Be $demoCount
+        Test-Path $run.FleetPath | Should -BeTrue
+        @(Get-ChildItem (Join-Path $TestDrive 'fleet') -Filter '*.html').Count | Should -Be ($demoCount + 1)
+    }
+
+    It 'rebuilds the fleet report from a folder with -FleetFrom' {
+        $folder = Join-Path $TestDrive 'again'
+        & $entryPoint -FactsPath (Join-Path $repoRoot 'demo\WS-*.json') -OutputPath $folder -Quiet | Out-Null
+        $run = & $entryPoint -FleetFrom $folder -Quiet -PassThru
+        $run.Fleet.summary.computers | Should -Be @(Get-ChildItem (Join-Path $repoRoot 'demo') -Filter 'WS-*.json').Count
+        Split-Path $run.FleetPath -Parent | Should -Be $folder
+    }
+
+    It 'checks -FailOn on every computer of a fleet' {
+        & $powershell -NoProfile -ExecutionPolicy Bypass -File $entryPoint -FactsPath (Join-Path $repoRoot 'demo\W*.json') -OutputPath (Join-Path $TestDrive 'fail') -Quiet -FailOn critical
+        $LASTEXITCODE | Should -Be 2
+    }
+
     It 'exits with code 2 when -FailOn finds a failed check' {
         $out = Join-Path $TestDrive 'out2'
         & $powershell -NoProfile -ExecutionPolicy Bypass -File $entryPoint -FactsPath (Join-Path $repoRoot 'demo\WS-SALES-07.json') -OutputPath $out -Quiet -FailOn critical

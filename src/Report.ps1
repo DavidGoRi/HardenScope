@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 # Assessment record (JSON) and the self-contained HTML report.
 
-$script:HSVersion = '0.1.0'
+$script:HSVersion = '0.2.0'
 
 function New-HSRecord {
     <#

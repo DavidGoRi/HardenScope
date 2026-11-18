@@ -2,7 +2,7 @@
 # Loaded by every test file in BeforeAll: the HardenScope functions and paths.
 
 $script:repoRoot = Split-Path -Path $PSScriptRoot -Parent
-foreach ($file in 'Facts', 'Rules', 'Report') {
+foreach ($file in 'Facts', 'Rules', 'Report', 'Remote', 'Fleet') {
     . (Join-Path -Path $script:repoRoot -ChildPath "src\$file.ps1")
 }
 $script:baselinePath = Join-Path -Path $script:repoRoot -ChildPath 'config\baseline.json'
