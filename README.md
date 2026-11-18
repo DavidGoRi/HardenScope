@@ -24,6 +24,7 @@ Most companies have no clear picture of how their computers are configured until
 - **Baseline as data:** the rules live in [`config/baseline.json`](config/baseline.json). Changing a threshold or adding a rule does not need any code.
 - **Whole fleets over WinRM:** `-ComputerName` or `-ComputerListPath` audits many computers in parallel without installing anything on them (the collector code travels with the request). The fleet report ranks the computers and lists the checks that fail on most of them, the ones worth fixing by Group Policy. Unreachable computers are listed with the reason.
 - **Changes since the last audit:** every run is compared with the previous record of the same computer. The report shows the score change, what got fixed and the new failures (regressions); the fleet report adds a change column and the count of new failures. `-FailOnRegression` exits with code 3 when something that passed now fails.
+- **Part of the toolkit:** `-PCScopePath` audits exactly the computers of a [PCScope](https://github.com/DavidGoRi/PCScope) inventory, and `-DeskScopeUrl` sends the fleet report to [DeskScope](https://github.com/DavidGoRi/DeskScope), which opens one ticket per computer and failed check and resolves it by itself when a later audit finds it fixed.
 - **Dark mode:** both reports follow the system theme and have a light/dark button; the choice is remembered.
 - **Ready for automation:** `-FailOn high` returns exit code 2 when a check of that severity fails, so it can run in a scheduled task or a pipeline. Every run also leaves a JSON record.
 
@@ -59,6 +60,8 @@ Try it with the 12 fictitious demo computers, without reading any real one (`dem
 | `-Credential`, `-ThrottleLimit` | Account for WinRM / computers contacted at the same time (32) |
 | `-NoCompare`, `-CompareWith <json>` | Do not compare with the previous audit / compare with a specific record |
 | `-FailOnRegression` | Exit code 3 when a check that passed in the previous audit now fails |
+| `-PCScopePath <folder\|csv>` | Audits the computers of a PCScope inventory over WinRM |
+| `-DeskScopeUrl <url>`, `-DeskScopeSeverity` | Sends the fleet report to DeskScope (token in `DESKSCOPE_TOKEN`); severities that open tickets (`critical`) |
 | `-FleetFrom <folder>` | Rebuilds the fleet report from the newest record of every computer in a folder |
 | `-Open` | Opens the HTML report (the fleet report when there are several computers) |
 | `-Language en\|es` | Console language (by default, the language of Windows) |
@@ -68,6 +71,20 @@ Try it with the 12 fictitious demo computers, without reading any real one (`dem
 | `-OutputPath <folder>` | Where the reports go (by default `output\`) |
 | `-Quiet`, `-PassThru` | No console output / return the record as an object |
 
+## With PCScope and DeskScope
+
+```powershell
+$env:DESKSCOPE_TOKEN = '<a DeskScope API token>'   # deskscope token create <technician>
+.\HardenScope.ps1 -PCScopePath \fileserver\it\pcscope\data -DeskScopeUrl https://desk.corp.example.com -DeskScopeSeverity critical, high
+```
+
+1. The computer list comes from PCScope: its data folder (one `<DEVICE>.json` per computer) or its `devices.csv` export.
+2. Every computer is audited over WinRM and the fleet report is written as usual.
+3. DeskScope receives the fleet summary (no raw facts, no local paths) at `/api/v1/import/hardenscope` and opens a ticket like *OPS-PC04: failed check "Firewall on: public profile"* with the risk, the fix and the PowerShell command, linked to the PCScope device sheet of that computer.
+4. On the next run, the tickets of checks that pass again are resolved automatically; computers that could not be reached keep theirs. Running it twice opens nothing new.
+
+If DeskScope cannot be reached or refuses the token, the reports are still saved and HardenScope exits with code 4.
+
 ## How it works
 
 ```
@@ -76,6 +93,7 @@ src/Rules.ps1      facts + config/baseline.json  ->  Pass / Fail / Unknown / Not
 src/Report.ps1     JSON record  +  HTML report (src/report-template.html)
 src/Remote.ps1     sends src/Facts.ps1 over WinRM and gets the facts back as JSON
 src/Compare.ps1    current results + previous record of the same computer  ->  fixed / regressed / score change
+src/Integrations.ps1  computer list from PCScope, fleet report to DeskScope
 src/Fleet.ps1      many records  ->  fleet summary  +  fleet report (src/fleet-template.html)
 ```
 
@@ -131,7 +149,7 @@ A fact that cannot be read (because a cmdlet is missing or needs administrator r
 
 ## Tests
 
-225 Pester tests and PSScriptAnalyzer run on every push in GitHub Actions (Windows PowerShell 5.1). They cover the rule engine, the parsers (`net accounts` in English and Spanish, the Security Center product state), the collectors with mocks, a live run on the CI computer, remoting with mocks and a real WinRM run against the CI computer, the fleet summary, the comparison between audits, the HTML reports (including their dark mode) and the exit codes.
+239 Pester tests and PSScriptAnalyzer run on every push in GitHub Actions (Windows PowerShell 5.1). They cover the rule engine, the parsers (`net accounts` in English and Spanish, the Security Center product state), the collectors with mocks, a live run on the CI computer, remoting with mocks and a real WinRM run against the CI computer, the fleet summary, the comparison between audits, the PCScope and DeskScope integration, the HTML reports (including their dark mode) and the exit codes.
 
 ```powershell
 Invoke-Pester -Path .\tests
@@ -141,8 +159,8 @@ Invoke-Pester -Path .\tests
 
 1. ~~Local audit, baseline, score and HTML report~~
 2. ~~Several computers at once over WinRM and a fleet report~~
-3. ~~Changes between two runs (what got better, what got worse)~~ (this version)
-4. Integration with [PCScope](https://github.com/DavidGoRi/PCScope) (computer list) and [DeskScope](https://github.com/DavidGoRi/DeskScope) (a ticket for every critical failure)
+3. ~~Changes between two runs (what got better, what got worse)~~
+4. ~~Integration with [PCScope](https://github.com/DavidGoRi/PCScope) (computer list) and [DeskScope](https://github.com/DavidGoRi/DeskScope) (a ticket for every critical failure)~~ (this version)
 5. Version 1.0.0 with a live demo
 
 ## Part of a portfolio

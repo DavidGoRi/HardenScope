@@ -24,6 +24,12 @@ La mayoría de las empresas no sabe bien cómo están configurados sus equipos h
 - **La línea base son datos:** las reglas están en [`config/baseline.json`](config/baseline.json).
 - **Flotas enteras por WinRM:** `-ComputerName` o `-ComputerListPath` audita muchos equipos en paralelo sin instalarles nada. El informe de la flota ordena los equipos y lista los fallos que más se repiten, los que conviene arreglar por directiva de grupo.
 - **Cambios desde la última auditoría:** cada ejecución se compara con la anterior del mismo equipo: cambio de nota, lo arreglado y los fallos nuevos. `-FailOnRegression` devuelve el código 3 si algo que pasaba ahora falla.
+- **Parte del ecosistema:** `-PCScopePath` audita los equipos del inventario de PCScope y `-DeskScopeUrl` envía el informe a DeskScope, que abre un ticket por equipo y fallo y lo resuelve solo cuando se arregla:
+
+  ```powershell
+  $env:DESKSCOPE_TOKEN = '<token de la API de DeskScope>'
+  .\HardenScope.ps1 -PCScopePath \servidor\it\pcscope\data -DeskScopeUrl https://desk.corp.example.com -DeskScopeSeverity critical, high
+  ```
 - **Modo oscuro:** los informes siguen el tema del sistema y tienen un botón claro/oscuro.
 - **Preparado para automatizar:** `-FailOn high` devuelve el código 2 si falla algo de esa gravedad.
 
@@ -90,8 +96,8 @@ Con los 12 equipos de demostración (ficticios; `demo\previous` es la misma flot
 
 1. ~~Auditoría local, línea base, nota e informe HTML~~
 2. ~~Varios equipos a la vez por WinRM e informe de la flota~~
-3. ~~Cambios entre dos ejecuciones~~ (esta versión)
-4. Integración con PCScope y DeskScope (un ticket por cada fallo crítico)
+3. ~~Cambios entre dos ejecuciones~~
+4. ~~Integración con PCScope y DeskScope (un ticket por cada fallo crítico)~~ (esta versión)
 5. Versión 1.0.0 con demo en vivo
 
 Los equipos de demostración son ficticios. No publiques los informes de `output\`: describen los fallos de seguridad de un equipo real.

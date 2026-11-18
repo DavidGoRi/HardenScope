@@ -24,6 +24,16 @@
 .PARAMETER ComputerListPath
     Text file with one computer name per line (# starts a comment).
 
+.PARAMETER PCScopePath
+    Audits the computers of a PCScope inventory over WinRM: PCScope's data
+    folder (one <DEVICE>.json per computer) or its devices.csv export.
+
+.PARAMETER DeskScopeUrl
+    Sends the fleet report to DeskScope, which opens one ticket per computer
+    and failed check (-DeskScopeSeverity, critical by default) and resolves
+    it when a later audit finds it fixed. The API token is read from the
+    DESKSCOPE_TOKEN environment variable.
+
 .PARAMETER FactsPath
     Evaluates facts saved earlier (HardenScope JSON records or demo files)
     instead of reading a computer. Accepts wildcards: .\demo\*.json
@@ -45,6 +55,11 @@
     Audits every computer in the list and opens the fleet report.
 
 .EXAMPLE
+    $env:DESKSCOPE_TOKEN = '<token>'; .\HardenScope.ps1 -PCScopePath \fileserver\it\pcscope\data -DeskScopeUrl https://desk.corp.example.com -DeskScopeSeverity critical, high
+    Audits every computer of the PCScope inventory and opens DeskScope tickets
+    for its critical and high failures.
+
+.EXAMPLE
     .\HardenScope.ps1 -FactsPath .\demo\*.json -Language es -Open
     Builds the fleet report of the fictitious demo computers.
 #>
@@ -52,8 +67,9 @@
 param(
     [Parameter(ParameterSetName = 'Remote', Mandatory)] [string[]] $ComputerName,
     [Parameter(ParameterSetName = 'List', Mandatory)] [string] $ComputerListPath,
-    [Parameter(ParameterSetName = 'Remote')] [Parameter(ParameterSetName = 'List')] [pscredential] $Credential,
-    [Parameter(ParameterSetName = 'Remote')] [Parameter(ParameterSetName = 'List')] [ValidateRange(1, 256)] [int] $ThrottleLimit = 32,
+    [Parameter(ParameterSetName = 'PCScope', Mandatory)] [string] $PCScopePath,
+    [Parameter(ParameterSetName = 'Remote')] [Parameter(ParameterSetName = 'List')] [Parameter(ParameterSetName = 'PCScope')] [pscredential] $Credential,
+    [Parameter(ParameterSetName = 'Remote')] [Parameter(ParameterSetName = 'List')] [Parameter(ParameterSetName = 'PCScope')] [ValidateRange(1, 256)] [int] $ThrottleLimit = 32,
     [Parameter(ParameterSetName = 'Facts', Mandatory)] [string[]] $FactsPath,
     [Parameter(ParameterSetName = 'Fleet', Mandatory)] [string] $FleetFrom,
     [string] $OutputPath,
@@ -63,6 +79,8 @@ param(
     [string] $CompareWith,
     [switch] $NoCompare,
     [switch] $FailOnRegression,
+    [string] $DeskScopeUrl,
+    [ValidateSet('critical', 'high', 'medium', 'low')] [string[]] $DeskScopeSeverity = @('critical'),
     [switch] $Open,
     [switch] $Quiet,
     [switch] $PassThru
@@ -71,7 +89,7 @@ param(
 $ErrorActionPreference = 'Stop'
 # $PSScriptRoot is empty in parameter defaults under 'powershell -File', so the defaults go here
 $here = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
-foreach ($file in 'Facts', 'Rules', 'Report', 'Remote', 'Fleet', 'Compare') { . (Join-Path -Path $here -ChildPath "src\$file.ps1") }
+foreach ($file in 'Facts', 'Rules', 'Report', 'Remote', 'Fleet', 'Compare', 'Integrations') { . (Join-Path -Path $here -ChildPath "src\$file.ps1") }
 $resolve = { param($path) $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($path) }
 
 if (-not $BaselinePath) { $BaselinePath = Join-Path -Path $here -ChildPath 'config\baseline.json' }
@@ -85,12 +103,14 @@ $text = @{
     en = @{
         reading = 'Reading the security settings...'; score = 'Hardening score'; grade = 'grade'; failed = 'Failed checks'
         none = 'No failed checks.'; unknown = 'could not be read'; report = 'Report'; fleet = 'Fleet report'
+        dsOpened = 'tickets opened'; dsUpdated = 'updated'; dsResolved = 'resolved'
         since = 'Since the audit of'; fixedN = 'fixed'; regressedN = 'new failures'; first = 'First audit of this computer: nothing to compare.'
         computer = 'Computer'; scoreShort = 'Score'; critHigh = 'Critical / high'; unreachable = 'Not audited'; average = 'Average score'; top = 'Most common failures'
     }
     es = @{
         reading = 'Leyendo la configuración de seguridad...'; score = 'Nota de bastionado'; grade = 'nota'; failed = 'Comprobaciones con fallo'
         none = 'Ninguna comprobación ha fallado.'; unknown = 'no se pudieron leer'; report = 'Informe'; fleet = 'Informe de la flota'
+        dsOpened = 'tickets abiertos'; dsUpdated = 'actualizados'; dsResolved = 'resueltos'
         since = 'Desde la auditoría del'; fixedN = 'arreglados'; regressedN = 'fallos nuevos'; first = 'Primera auditoría de este equipo: no hay con qué comparar.'
         computer = 'Equipo'; scoreShort = 'Nota'; critHigh = 'Críticos / altos'; unreachable = 'Sin auditar'; average = 'Nota media'; top = 'Fallos más repetidos'
     }
@@ -121,8 +141,10 @@ switch ($PSCmdlet.ParameterSetName) {
         }
         $fleetMode = $files.Count -gt 1
     }
-    { $_ -in 'Remote', 'List' } {
-        $names = if ($ComputerListPath) { Get-HSComputerList -Path $ComputerListPath } else { @($ComputerName | Select-Object -Unique) }
+    { $_ -in 'Remote', 'List', 'PCScope' } {
+        $names = if ($PCScopePath) { Get-HSPCScopeComputer -Path $PCScopePath }
+        elseif ($ComputerListPath) { Get-HSComputerList -Path $ComputerListPath }
+        else { @($ComputerName | Select-Object -Unique) }
         $isLocal = { param($n) @('localhost', '.', '127.0.0.1', $env:COMPUTERNAME) -contains $n }
         $remoteNames = @($names | Where-Object { -not (& $isLocal $_) })
         if (-not $Quiet) { Write-Host "$($text.reading) ($(@($names).Count))" -ForegroundColor DarkGray }
@@ -180,9 +202,18 @@ else {
 }
 
 $fleetPath = $null
+if ($DeskScopeUrl) { $fleetMode = $true }   # DeskScope reads the fleet report
 if ($fleetMode) {
     $fleet = New-HSFleetRecord -Records $records -Unreachable $unreachable
     $fleetPath = Save-HSFleetReport -Fleet $fleet -OutputPath $OutputPath -Stamp $stamp
+}
+
+# DeskScope: one ticket per computer and failed check of the chosen severities
+$deskScopeResult = $null
+$deskScopeError = $null
+if ($DeskScopeUrl) {
+    try { $deskScopeResult = Send-HSDeskScope -Fleet $fleet -Url $DeskScopeUrl -Severity $DeskScopeSeverity -Language $Language }
+    catch { $deskScopeError = $_.Exception.Message }
 }
 
 # 3. Console summary
@@ -249,6 +280,12 @@ if (-not $Quiet) {
     }
 }
 
+if ($deskScopeResult -and -not $Quiet) {
+    Write-Host ('  DeskScope: {0} {1}, {2} {3}, {4} {5}' -f @($deskScopeResult.created).Count, $text.dsOpened,
+        @($deskScopeResult.updated).Count, $text.dsUpdated, @($deskScopeResult.resolved).Count, $text.dsResolved) -ForegroundColor Cyan
+    Write-Host ''
+}
+
 $mainReport = if ($fleetPath) { $fleetPath } elseif ($audited.Count -gt 0) { $audited[0].HtmlPath } else { $null }
 if ($Open -and $mainReport) { Start-Process -FilePath $mainReport }
 if ($PassThru) {
@@ -260,9 +297,15 @@ if ($PassThru) {
         Unreachable = $unreachable
         Fleet       = $(if ($fleetMode) { $fleet } else { $null })
         FleetPath   = $fleetPath
+        DeskScope   = $deskScopeResult
     }
 }
 
+if ($deskScopeError) {
+    # The reports are saved; only the tickets are missing
+    Write-Error -Message "DeskScope: $deskScopeError" -ErrorAction Continue
+    exit 4
+}
 if ($FailOnRegression) {
     $regressions = @($records | Where-Object { $_.changes -and @($_.changes.regressed).Count -gt 0 })
     if ($regressions.Count -gt 0) { exit 3 }

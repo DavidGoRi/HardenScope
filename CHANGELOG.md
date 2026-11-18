@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 - 2026-11-18
+
+- `-PCScopePath` audits the computers of a PCScope inventory (its data folder or `devices.csv`, with `,` or `;`).
+- `-DeskScopeUrl` and `-DeskScopeSeverity` send the fleet report to DeskScope 1.1 (`/api/v1/import/hardenscope`), which opens one ticket per computer and failed check and resolves the fixed ones. The token is read from `DESKSCOPE_TOKEN`; only the fleet summary is sent. Exit code 4 when DeskScope fails.
+- The fleet report includes the risk of every failing check.
+
 ## 0.3.0 - 2026-11-18
 
 - Every audit is compared with the previous record of the same computer in the output folder: score change, checks fixed and new failures (regressions), in the console, the computer report and the fleet report.

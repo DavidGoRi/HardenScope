@@ -66,7 +66,7 @@ function New-HSFleetRecord {
             if (-not $rules.Contains($result.id)) {
                 $rules[$result.id] = [ordered] @{
                     id = $result.id; category = $result.category; severity = $result.severity; title = $result.title
-                    fix = $result.fix; command = $result.command; failedOn = New-Object -TypeName System.Collections.Generic.List[string]
+                    risk = $result.risk; fix = $result.fix; command = $result.command; failedOn = New-Object -TypeName System.Collections.Generic.List[string]
                 }
             }
             if ($result.status -eq 'Fail') { $rules[$result.id].failedOn.Add([string] $record.device.name) }
