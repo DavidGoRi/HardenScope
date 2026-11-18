@@ -60,6 +60,9 @@ param(
     [string] $BaselinePath,
     [ValidateSet('en', 'es')] [string] $Language = $(if ((Get-Culture).TwoLetterISOLanguageName -eq 'es') { 'es' } else { 'en' }),
     [ValidateSet('none', 'low', 'medium', 'high', 'critical')] [string] $FailOn = 'none',
+    [string] $CompareWith,
+    [switch] $NoCompare,
+    [switch] $FailOnRegression,
     [switch] $Open,
     [switch] $Quiet,
     [switch] $PassThru
@@ -68,7 +71,7 @@ param(
 $ErrorActionPreference = 'Stop'
 # $PSScriptRoot is empty in parameter defaults under 'powershell -File', so the defaults go here
 $here = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
-foreach ($file in 'Facts', 'Rules', 'Report', 'Remote', 'Fleet') { . (Join-Path -Path $here -ChildPath "src\$file.ps1") }
+foreach ($file in 'Facts', 'Rules', 'Report', 'Remote', 'Fleet', 'Compare') { . (Join-Path -Path $here -ChildPath "src\$file.ps1") }
 $resolve = { param($path) $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($path) }
 
 if (-not $BaselinePath) { $BaselinePath = Join-Path -Path $here -ChildPath 'config\baseline.json' }
@@ -82,11 +85,13 @@ $text = @{
     en = @{
         reading = 'Reading the security settings...'; score = 'Hardening score'; grade = 'grade'; failed = 'Failed checks'
         none = 'No failed checks.'; unknown = 'could not be read'; report = 'Report'; fleet = 'Fleet report'
+        since = 'Since the audit of'; fixedN = 'fixed'; regressedN = 'new failures'; first = 'First audit of this computer: nothing to compare.'
         computer = 'Computer'; scoreShort = 'Score'; critHigh = 'Critical / high'; unreachable = 'Not audited'; average = 'Average score'; top = 'Most common failures'
     }
     es = @{
         reading = 'Leyendo la configuración de seguridad...'; score = 'Nota de bastionado'; grade = 'nota'; failed = 'Comprobaciones con fallo'
         none = 'Ninguna comprobación ha fallado.'; unknown = 'no se pudieron leer'; report = 'Informe'; fleet = 'Informe de la flota'
+        since = 'Desde la auditoría del'; fixedN = 'arreglados'; regressedN = 'fallos nuevos'; first = 'Primera auditoría de este equipo: no hay con qué comparar.'
         computer = 'Equipo'; scoreShort = 'Nota'; critHigh = 'Críticos / altos'; unreachable = 'Sin auditar'; average = 'Nota media'; top = 'Fallos más repetidos'
     }
 }[$Language]
@@ -109,7 +114,10 @@ switch ($PSCmdlet.ParameterSetName) {
             $saved = [IO.File]::ReadAllText($path, [Text.Encoding]::UTF8) | ConvertFrom-Json
             if (-not $saved.facts) { throw "$path has no 'facts' object" }
             $name = if ($saved.device.name) { $saved.device.name } elseif ($saved.computerName) { $saved.computerName } else { [IO.Path]::GetFileNameWithoutExtension($path) }
-            $targets += New-HSCollectionResult -ComputerName $name -Status 'OK' -Facts $saved.facts -Errors @($saved.errors | Where-Object { $_ })
+            $target = New-HSCollectionResult -ComputerName $name -Status 'OK' -Facts $saved.facts -Errors @($saved.errors | Where-Object { $_ })
+            # Saved facts keep the date they were collected on
+            if ($saved.generatedAt) { $target | Add-Member -NotePropertyName GeneratedAt -NotePropertyValue ([datetime] $saved.generatedAt) }
+            $targets += $target
         }
         $fleetMode = $files.Count -gt 1
     }
@@ -145,13 +153,24 @@ if ($PSCmdlet.ParameterSetName -eq 'Fleet') {
     $fleetMode = $true
 }
 else {
-    foreach ($target in @($targets | Where-Object { $_.Status -eq 'OK' })) {
+    $okTargets = @($targets | Where-Object { $_.Status -eq 'OK' })
+    if ($CompareWith -and $okTargets.Count -ne 1) { throw '-CompareWith works with a single computer' }
+    foreach ($target in $okTargets) {
+        $when = if ($target.PSObject.Properties['GeneratedAt']) { $target.GeneratedAt } else { Get-Date }
         $results = @(Invoke-HSAssessment -Facts $target.Facts -Baseline $baseline)
         $score = Get-HSScore -Results $results
-        $record = New-HSRecord -ComputerName $target.ComputerName -Facts $target.Facts -Baseline $baseline -Results $results -Score $score -Errors $target.Errors
+        $previous = $null
+        if ($CompareWith) {
+            $previous = Read-HSRecord -Path (& $resolve $CompareWith)
+            if (-not $previous) { throw "$CompareWith is not a HardenScope record" }
+        }
+        elseif (-not $NoCompare) { $previous = Get-HSPreviousRecord -Path $OutputPath -ComputerName $target.ComputerName -Before $when }
+        $changes = if ($previous) { Compare-HSResult -Previous $previous -Results $results -Score $score } else { $null }
+        $record = New-HSRecord -ComputerName $target.ComputerName -Facts $target.Facts -Baseline $baseline -Results $results -Score $score -Errors $target.Errors -GeneratedAt $when -Changes $changes
         $safeName = $target.ComputerName -replace '[^\w.-]', '_'
-        $jsonPath = Join-Path -Path $OutputPath -ChildPath "$safeName-$stamp.json"
-        $htmlPath = Join-Path -Path $OutputPath -ChildPath "$safeName-$stamp.html"
+        $fileStamp = $when.ToString('yyyyMMdd-HHmmss')
+        $jsonPath = Join-Path -Path $OutputPath -ChildPath "$safeName-$fileStamp.json"
+        $htmlPath = Join-Path -Path $OutputPath -ChildPath "$safeName-$fileStamp.html"
         Save-HSRecord -Record $record -Path $jsonPath
         Save-HSHtmlReport -Record $record -Path $htmlPath
         $audited += [pscustomobject] @{ Record = $record; Results = $results; Errors = $target.Errors; JsonPath = $jsonPath; HtmlPath = $htmlPath }
@@ -172,6 +191,10 @@ if (-not $Quiet) {
         Write-Host ('  {0,-20} {1,5}  {2}  {3}' -f $text.computer, $text.scoreShort, ' ', $text.critHigh) -ForegroundColor DarkGray
         foreach ($computer in $fleet.computers) {
             $line = '  {0,-20} {1,5}  {2}  {3} / {4}' -f $computer.name, $computer.score, $computer.grade, $computer.failedBySeverity.critical, $computer.failedBySeverity.high
+            if ($computer.change) {
+                $line += '    {0}{1}' -f $(if ($computer.change.scoreDelta -gt 0) { '+' } else { '' }), $computer.change.scoreDelta
+                if ($computer.change.regressed -gt 0) { $line += " (+$($computer.change.regressed) $($text.regressedN))" }
+            }
             Write-Host $line -ForegroundColor $(if ($computer.grade) { $gradeColors[[string] $computer.grade] } else { 'Gray' })
         }
         foreach ($item in $fleet.unreachable) {
@@ -204,6 +227,22 @@ if (-not $Quiet) {
             }
         }
         if ($score.unknown -gt 0) { Write-Host ("`n  {0} {1}" -f $score.unknown, $text.unknown) -ForegroundColor DarkGray }
+        $change = $one.Record.changes
+        if ($change) {
+            $delta = if ($null -eq $change.scoreDelta) { '' } elseif ($change.scoreDelta -ge 0) { "+$($change.scoreDelta)" } else { [string] $change.scoreDelta }
+            $deltaColor = if ($change.scoreDelta -gt 0) { 'Green' } elseif ($change.scoreDelta -lt 0) { 'Red' } else { 'Gray' }
+            Write-Host ("`n  {0} {1:yyyy-MM-dd HH:mm}: {2} -> {3} ({4}); {5} {6}, {7} {8}" -f $text.since, ([datetime] $change.previousAt), $change.previousScore, $score.score, $delta,
+                    @($change.fixed).Count, $text.fixedN, @($change.regressed).Count, $text.regressedN) -ForegroundColor $deltaColor
+            foreach ($id in @($change.regressed)) {
+                $item = $one.Results | Where-Object { $_.Id -eq $id }
+                Write-Host ('  + {0,-11} {1}' -f $id, $item.Title.$Language) -ForegroundColor Red
+            }
+            foreach ($id in @($change.fixed)) {
+                $item = $one.Results | Where-Object { $_.Id -eq $id }
+                Write-Host ('  - {0,-11} {1}' -f $id, $item.Title.$Language) -ForegroundColor Green
+            }
+        }
+        elseif (-not $NoCompare) { Write-Host "`n  $($text.first)" -ForegroundColor DarkGray }
         foreach ($message in $one.Errors) { Write-Host "  ! $message" -ForegroundColor DarkGray }
         Write-Host "`n  $($text.report): $($one.HtmlPath)`n"
     }
@@ -223,6 +262,10 @@ if ($PassThru) {
     }
 }
 
+if ($FailOnRegression) {
+    $regressions = @($records | Where-Object { $_.changes -and @($_.changes.regressed).Count -gt 0 })
+    if ($regressions.Count -gt 0) { exit 3 }
+}
 if ($FailOn -ne 'none') {
     $threshold = $severityOrder.IndexOf($FailOn)
     $blocking = @($records | ForEach-Object { $_.results } | Where-Object { $_.status -eq 'Fail' -and $severityOrder.IndexOf($_.severity) -le $threshold })

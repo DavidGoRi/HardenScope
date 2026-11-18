@@ -69,13 +69,33 @@ foreach ($name in $names) {
     $devices[$name] = $overrides
 }
 
-if (-not (Test-Path -LiteralPath $OutputPath)) { New-Item -ItemType Directory -Path $OutputPath | Out-Null }
+# The audit of a month earlier, for the "changes since the last audit" views:
+# some gaps were fixed since then and a few new ones appeared.
+$previousRandom = New-Object -TypeName System.Random -ArgumentList 1019
+$previousAt = '2026-10-19T09:30:00+02:00'
+$allGaps = [ordered] @{}
+foreach ($key in $gaps.Keys) { $allGaps[$key] = $gaps[$key] }
+foreach ($key in $rareGaps.Keys) { $allGaps[$key] = $rareGaps[$key] }
+
+$utf8 = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+$previousPath = Join-Path -Path $OutputPath -ChildPath 'previous'
+foreach ($folder in $OutputPath, $previousPath) { if (-not (Test-Path -LiteralPath $folder)) { New-Item -ItemType Directory -Path $folder | Out-Null } }
 foreach ($name in $devices.Keys) {
     $facts = [ordered] @{}
     foreach ($key in $hardened.Keys) { $facts[$key] = $hardened[$key] }
     foreach ($key in $devices[$name].Keys) { $facts[$key] = $devices[$name][$key] }
     $json = [ordered] @{ computerName = $name; demo = $true; facts = $facts } | ConvertTo-Json -Depth 4
-    $path = Join-Path -Path $OutputPath -ChildPath "$name.json"
-    [IO.File]::WriteAllText($path, $json, (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false))
-    Write-Verbose "Wrote $path"
+    [IO.File]::WriteAllText((Join-Path -Path $OutputPath -ChildPath "$name.json"), $json, $utf8)
+
+    $previous = [ordered] @{}
+    foreach ($key in $facts.Keys) { $previous[$key] = $facts[$key] }
+    foreach ($key in $allGaps.Keys) {
+        $isGood = $facts[$key] -eq $hardened[$key]
+        $roll = $previousRandom.NextDouble()
+        if ($isGood -and $roll -lt 0.22) { $previous[$key] = & $allGaps[$key] }       # fixed since then
+        elseif (-not $isGood -and $roll -lt 0.08) { $previous[$key] = $hardened[$key] } # broke since then
+    }
+    $json = [ordered] @{ computerName = $name; demo = $true; generatedAt = $previousAt; facts = $previous } | ConvertTo-Json -Depth 4
+    [IO.File]::WriteAllText((Join-Path -Path $previousPath -ChildPath "$name.json"), $json, $utf8)
+    Write-Verbose "Wrote $name"
 }

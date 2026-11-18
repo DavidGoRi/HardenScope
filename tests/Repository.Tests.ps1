@@ -30,7 +30,7 @@ Describe 'Script files' {
 
 Describe 'Demo data' {
     It 'is marked as fictitious' {
-        foreach ($file in Get-ChildItem -Path (Join-Path $repoRoot 'demo') -Filter '*.json') {
+        foreach ($file in Get-ChildItem -Path (Join-Path $repoRoot 'demo') -Filter '*.json' -Recurse) {
             ([IO.File]::ReadAllText($file.FullName) | ConvertFrom-Json).demo | Should -BeTrue -Because $file.Name
         }
     }
@@ -38,8 +38,10 @@ Describe 'Demo data' {
     It 'is what tools\New-DemoFacts.ps1 writes' {
         $out = Join-Path $TestDrive 'demo'
         & (Join-Path $repoRoot 'tools\New-DemoFacts.ps1') -OutputPath $out
-        foreach ($file in Get-ChildItem -Path (Join-Path $repoRoot 'demo') -Filter '*.json') {
-            [IO.File]::ReadAllText((Join-Path $out $file.Name)) | Should -BeExactly ([IO.File]::ReadAllText($file.FullName)) -Because $file.Name
+        $demo = Join-Path $repoRoot 'demo'
+        foreach ($file in Get-ChildItem -Path $demo -Filter '*.json' -Recurse) {
+            $relative = $file.FullName.Substring($demo.Length + 1)
+            [IO.File]::ReadAllText((Join-Path $out $relative)) | Should -BeExactly ([IO.File]::ReadAllText($file.FullName)) -Because $relative
         }
     }
 

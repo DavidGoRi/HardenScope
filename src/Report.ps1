@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 # Assessment record (JSON) and the self-contained HTML report.
 
-$script:HSVersion = '0.2.0'
+$script:HSVersion = '0.3.0'
 
 function New-HSRecord {
     <#
@@ -15,7 +15,9 @@ function New-HSRecord {
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Results,
         [Parameter(Mandatory)] $Score,
         [string[]] $Errors = @(),
-        [datetime] $GeneratedAt = (Get-Date)
+        [datetime] $GeneratedAt = (Get-Date),
+        # From Compare-HSResult: changes since the previous audit, or $null
+        $Changes = $null
     )
     $osCaption = Get-HSFactValue -Facts $Facts -Name 'os.caption'
     $osBuild = Get-HSFactValue -Facts $Facts -Name 'os.build'
@@ -38,6 +40,7 @@ function New-HSRecord {
                     title = $_.Title; risk = $_.Risk; fix = $_.Fix; command = $_.Command; reference = $_.Reference
                 }
             })
+        changes     = $Changes
         errors      = @($Errors)
         facts       = $Facts
     }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 - 2026-11-18
+
+- Every audit is compared with the previous record of the same computer in the output folder: score change, checks fixed and new failures (regressions), in the console, the computer report and the fleet report.
+- `-NoCompare`, `-CompareWith <record>` and `-FailOnRegression` (exit code 3).
+- Saved facts keep the date they were collected on (`generatedAt`).
+- Light/dark button in both reports, remembered per viewer.
+- The demo includes the same fleet a month earlier (`demo/previous`).
+
 ## 0.2.0 - 2026-11-18
 
 - Audit several computers in parallel over WinRM with `-ComputerName` or `-ComputerListPath` (`-Credential`, `-ThrottleLimit`); nothing is installed on them.

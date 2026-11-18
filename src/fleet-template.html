@@ -59,7 +59,7 @@ th[aria-sort="ascending"]::after { content: " \25B2"; font-size: 10px; }
 th[aria-sort="descending"]::after { content: " \25BC"; font-size: 10px; }
 td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 tbody tr:hover { background: var(--hover); }
-td.num, th.num { text-align: right; }
+td.num, th.num { text-align: right; white-space: nowrap; }
 .grade { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 5px; color: #fff; font-weight: 700; font-size: 15px; line-height: 1; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -84,6 +84,9 @@ code { display: block; background: var(--code); border-radius: 6px; padding: 7px
 footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: center; }
 @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .hide-sm { display: none; } }
+.theme-btn { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; width: 34px; height: 30px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.theme-btn svg { width: 16px; height: 16px; }
+.toolbar { display: flex; gap: 6px; align-items: center; }
 </style>
 </head>
 <body>
@@ -96,9 +99,9 @@ footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: cen
       </div>
       <div class="sub" id="sub"></div>
     </div>
-    <div class="seg" role="group" aria-label="Language">
+    <div class="toolbar"><div class="seg" role="group" aria-label="Language">
       <button type="button" data-lang="en">EN</button><button type="button" data-lang="es">ES</button>
-    </div>
+    </div><button type="button" class="theme-btn" id="themeBtn" aria-label="Toggle dark mode"></button></div>
   </header>
 
   <section class="tiles" id="tiles"></section>
@@ -136,6 +139,7 @@ footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: cen
       fleet: 'fleet', distribution: 'Grades', computers: 'Computers', topFailures: 'Most common failures',
       topHint: 'Fixing these by Group Policy improves the most computers at once.',
       tComputers: 'Computers audited', tAverage: 'Average score', tCritical: 'With critical failures', tUnreach: 'Not reachable',
+      tChanges: 'New failures since last audit', hChanges: '{w} computers worse, {i} better', delta: 'Change',
       outOf: 'out of 100', hCritical: 'need attention first', hUnreach: 'see the list below the table',
       name: 'Computer', score: 'Score', grade: 'Grade', crit: 'Critical', colHigh: 'High', failed: 'Failed', high: 'High',
       critical: 'Critical', medium: 'Medium', low: 'Low',
@@ -148,6 +152,7 @@ footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: cen
       fleet: 'flota', distribution: 'Notas', computers: 'Equipos', topFailures: 'Fallos más repetidos',
       topHint: 'Arreglarlos por directiva de grupo mejora más equipos de una vez.',
       tComputers: 'Equipos auditados', tAverage: 'Nota media', tCritical: 'Con fallos críticos', tUnreach: 'Sin conexión',
+      tChanges: 'Fallos nuevos desde la última auditoría', hChanges: '{w} equipos peor, {i} mejor', delta: 'Cambio',
       outOf: 'sobre 100', hCritical: 'hay que atenderlos primero', hUnreach: 'mira la lista bajo la tabla',
       name: 'Equipo', score: 'Nota', grade: 'Letra', crit: 'Críticos', colHigh: 'Altos', failed: 'Fallos', high: 'Alta',
       critical: 'Crítica', medium: 'Media', low: 'Baja',
@@ -159,7 +164,7 @@ footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: cen
   };
   var SEV = ['critical', 'high', 'medium', 'low'];
   var COLUMNS = [
-    { key: 'name', label: 'name' }, { key: 'score', label: 'score', num: true }, { key: 'grade', label: 'grade' },
+    { key: 'name', label: 'name' }, { key: 'score', label: 'score', num: true }, { key: 'grade', label: 'grade' }, { key: 'delta', label: 'delta', num: true, sm: true },
     { key: 'critical', label: 'crit', num: true }, { key: 'high', label: 'colHigh', num: true, sm: true }, { key: 'failed', label: 'failed', num: true, sm: true }
   ];
   var sortKey = 'score', sortDir = 1;
@@ -168,8 +173,30 @@ footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: cen
   var qs = /[?&]lang=(en|es)/.exec(location.search);
   if (qs) lang = qs[1];
   if (lang !== 'en' && lang !== 'es') lang = (navigator.language || '').slice(0, 2) === 'es' ? 'es' : 'en';
+  // Theme: ?theme= wins, then the viewer's choice, then the system setting
+  var storedTheme = '';
+  try { storedTheme = localStorage.getItem('hs-theme') || ''; } catch (e) { storedTheme = ''; }
   var theme = /[?&]theme=(light|dark)/.exec(location.search);
-  if (theme) document.documentElement.setAttribute('data-theme', theme[1]);
+  var currentTheme = theme ? theme[1] : (storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : '');
+  if (currentTheme) document.documentElement.setAttribute('data-theme', currentTheme);
+  function effectiveTheme() {
+    return currentTheme || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  }
+  var SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+  var MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+  function renderThemeButton() {
+    var b = document.getElementById('themeBtn');
+    var dark = effectiveTheme() === 'dark';
+    b.innerHTML = dark ? SUN : MOON;
+    b.title = lang === 'es' ? (dark ? 'Modo claro' : 'Modo oscuro') : (dark ? 'Light mode' : 'Dark mode');
+    b.setAttribute('aria-label', b.title);
+  }
+  document.getElementById('themeBtn').addEventListener('click', function () {
+    currentTheme = effectiveTheme() === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    try { localStorage.setItem('hs-theme', currentTheme); } catch (e) { /* private mode */ }
+    renderThemeButton();
+  });
 
   function t(key, vars) { var s = I18N[lang][key] || key; for (var k in vars || {}) s = s.replace('{' + k + '}', vars[k]); return s; }
   function tr(o) { return o ? (o[lang] || o.en || '') : ''; }
@@ -178,11 +205,20 @@ footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: cen
   function gradeBox(g) { return g ? '<span class="grade" style="background:var(--g' + g + ')">' + esc(g) + '</span>' : '-'; }
   function value(c, key) {
     if (key === 'critical' || key === 'high') return c.failedBySeverity ? (c.failedBySeverity[key] || 0) : 0;
+    if (key === 'delta') return c.change ? c.change.scoreDelta : null;
     return c[key];
+  }
+  function deltaCell(c) {
+    if (!c.change || c.change.scoreDelta === null || c.change.scoreDelta === undefined) return '<span class="zero">-</span>';
+    var d = c.change.scoreDelta;
+    var color = d > 0 ? 'var(--pass)' : (d < 0 ? 'var(--fail)' : 'var(--muted)');
+    var extra = c.change.regressed ? ' <span class="os" title="' + esc(t('tChanges')) + '">+' + c.change.regressed + '</span>' : '';
+    return '<span style="color:' + color + ';font-weight:600">' + (d > 0 ? '+' : '') + d + '</span>' + extra;
   }
   function pill(n, sev) { return n > 0 ? '<span class="pill" style="background:var(--' + sev + ')">' + n + '</span>' : '<span class="zero">0</span>'; }
 
   function render() {
+    renderThemeButton();
     document.documentElement.lang = lang;
     document.querySelectorAll('[data-i18n]').forEach(function (el) { el.textContent = t(el.getAttribute('data-i18n')); });
     document.querySelectorAll('[data-lang]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-lang') === lang); });
@@ -194,6 +230,7 @@ footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: cen
       [t('tCritical'), s.withCriticalFailures, s.withCriticalFailures ? t('hCritical') : ''],
       [t('tUnreach'), s.unreachable, s.unreachable ? t('hUnreach') : '']
     ];
+    if (s.compared) tiles.push([t('tChanges'), s.regressions, t('hChanges', { w: s.worsened, i: s.improved })]);
     $('tiles').innerHTML = tiles.map(function (x) { return '<div class="panel tile"><div class="label">' + esc(x[0]) + '</div><div class="value">' + esc(x[1]) + '</div><div class="hint">' + esc(x[2]) + '</div></div>'; }).join('');
 
     var grades = ['A', 'B', 'C', 'D', 'F'];
@@ -216,7 +253,7 @@ footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: cen
     });
     $('rows').innerHTML = rows.map(function (c) {
       var name = c.report ? '<a href="' + encodeURI(c.report) + '?lang=' + lang + '">' + esc(c.name) + '</a>' : esc(c.name);
-      return '<tr><td>' + name + '<div class="os">' + esc(c.os) + '</div></td><td class="num"><strong>' + esc(c.score === null ? '-' : c.score) + '</strong></td><td>' + gradeBox(c.grade) +
+      return '<tr><td>' + name + '<div class="os">' + esc(c.os) + '</div></td><td class="num"><strong>' + esc(c.score === null ? '-' : c.score) + '</strong></td><td>' + gradeBox(c.grade) + '</td><td class="num hide-sm">' + deltaCell(c) +
         '</td><td class="num">' + pill(value(c, 'critical'), 'critical') + '</td><td class="num hide-sm">' + pill(value(c, 'high'), 'high') + '</td><td class="num hide-sm">' + esc(c.failed) + '</td></tr>';
     }).join('');
     $('unreach').innerHTML = data.unreachable.length ? '<h2>' + esc(t('unreachTitle')) + '</h2><ul>' + data.unreachable.map(function (u) { return '<li><strong>' + esc(u.name) + '</strong> <span class="os">' + esc(u.message) + '</span></li>'; }).join('') + '</ul>' : '';

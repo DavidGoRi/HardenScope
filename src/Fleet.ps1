@@ -42,6 +42,10 @@ function New-HSFleetRecord {
     $computers = @($Records | Sort-Object -Property @{ Expression = { if ($null -eq $_.score.score) { 999 } else { $_.score.score } } }, @{ Expression = { $_.device.name } } | ForEach-Object {
             $report = $null
             if ($_._path) { $report = [IO.Path]::ChangeExtension([IO.Path]::GetFileName($_._path), '.html') }
+            $change = $null
+            if ($_.changes) {
+                $change = [ordered] @{ scoreDelta = $_.changes.scoreDelta; fixed = @($_.changes.fixed).Count; regressed = @($_.changes.regressed).Count }
+            }
             [ordered] @{
                 name             = $_.device.name
                 os               = $_.device.os
@@ -52,6 +56,7 @@ function New-HSFleetRecord {
                 unknown          = $_.score.unknown
                 failedBySeverity = $_.score.failedBySeverity
                 report           = $report
+                change           = $change
             }
         })
 
@@ -83,6 +88,8 @@ function New-HSFleetRecord {
     $grades = [ordered] @{ A = 0; B = 0; C = 0; D = 0; F = 0 }
     foreach ($computer in $computers) { if ($computer.grade -and $grades.Contains([string] $computer.grade)) { $grades[[string] $computer.grade]++ } }
     $withCritical = @($computers | Where-Object { [int] $_.failedBySeverity.critical -gt 0 }).Count
+    $compared = @($computers | Where-Object { $_.change })
+    $regressions = ($compared | ForEach-Object { $_.change.regressed } | Measure-Object -Sum).Sum
 
     $baseline = $null
     if ($Records.Count -gt 0) { $baseline = $Records[0].baseline }
@@ -95,6 +102,9 @@ function New-HSFleetRecord {
         summary     = [ordered] @{
             computers = $computers.Count; unreachable = @($Unreachable).Count; averageScore = $average
             grades = $grades; withCriticalFailures = $withCritical
+            compared = $compared.Count; regressions = [int] $regressions
+            improved = @($compared | Where-Object { $_.change.scoreDelta -gt 0 }).Count
+            worsened = @($compared | Where-Object { $_.change.scoreDelta -lt 0 }).Count
         }
         computers   = $computers
         failing     = $failing

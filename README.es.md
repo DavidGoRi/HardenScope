@@ -23,6 +23,8 @@ La mayoría de las empresas no sabe bien cómo están configurados sus equipos h
 - **Funciona en cualquier idioma de Windows.**
 - **La línea base son datos:** las reglas están en [`config/baseline.json`](config/baseline.json).
 - **Flotas enteras por WinRM:** `-ComputerName` o `-ComputerListPath` audita muchos equipos en paralelo sin instalarles nada. El informe de la flota ordena los equipos y lista los fallos que más se repiten, los que conviene arreglar por directiva de grupo.
+- **Cambios desde la última auditoría:** cada ejecución se compara con la anterior del mismo equipo: cambio de nota, lo arreglado y los fallos nuevos. `-FailOnRegression` devuelve el código 3 si algo que pasaba ahora falla.
+- **Modo oscuro:** los informes siguen el tema del sistema y tienen un botón claro/oscuro.
 - **Preparado para automatizar:** `-FailOn high` devuelve el código 2 si falla algo de esa gravedad.
 
 ## Uso
@@ -39,9 +41,10 @@ Varios equipos por WinRM:
 .\HardenScope.ps1 -ComputerListPath .\equipos.txt -Credential (Get-Credential CORP\it.admin) -Open -Language es
 ```
 
-Con los 12 equipos de demostración (ficticios):
+Con los 12 equipos de demostración (ficticios; `demo\previous` es la misma flota un mes antes):
 
 ```powershell
+.\HardenScope.ps1 -FactsPath .\demo\previous\*.json -Quiet
 .\HardenScope.ps1 -FactsPath .\demo\*.json -Open -Language es
 ```
 
@@ -86,8 +89,8 @@ Con los 12 equipos de demostración (ficticios):
 ## Hoja de ruta
 
 1. ~~Auditoría local, línea base, nota e informe HTML~~
-2. ~~Varios equipos a la vez por WinRM e informe de la flota~~ (esta versión)
-3. Cambios entre dos ejecuciones
+2. ~~Varios equipos a la vez por WinRM e informe de la flota~~
+3. ~~Cambios entre dos ejecuciones~~ (esta versión)
 4. Integración con PCScope y DeskScope (un ticket por cada fallo crítico)
 5. Versión 1.0.0 con demo en vivo
 

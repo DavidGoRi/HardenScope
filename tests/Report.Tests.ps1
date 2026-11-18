@@ -52,3 +52,14 @@ Describe 'ConvertTo-HSHtml' {
         $template | Should -Not -Match '<(script|link)[^>]+(src|href)="https?:'
     }
 }
+
+Describe 'HTML templates' {
+    It '<_> has a dark mode and a light/dark button' -ForEach @('report-template.html', 'fleet-template.html') {
+        $template = [IO.File]::ReadAllText((Join-Path $repoRoot "src\$_"))
+        $template | Should -Match 'prefers-color-scheme: dark'
+        $template | Should -Match ([regex]::Escape(':root[data-theme="dark"]'))
+        $template | Should -Match 'id="themeBtn"'
+        $template | Should -Match "localStorage.setItem\('hs-theme'"
+    }
+}
+

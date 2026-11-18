@@ -23,6 +23,8 @@ Most companies have no clear picture of how their computers are configured until
 - **Works in any language of Windows:** `net accounts` is parsed by position, not by its translated labels.
 - **Baseline as data:** the rules live in [`config/baseline.json`](config/baseline.json). Changing a threshold or adding a rule does not need any code.
 - **Whole fleets over WinRM:** `-ComputerName` or `-ComputerListPath` audits many computers in parallel without installing anything on them (the collector code travels with the request). The fleet report ranks the computers and lists the checks that fail on most of them, the ones worth fixing by Group Policy. Unreachable computers are listed with the reason.
+- **Changes since the last audit:** every run is compared with the previous record of the same computer. The report shows the score change, what got fixed and the new failures (regressions); the fleet report adds a change column and the count of new failures. `-FailOnRegression` exits with code 3 when something that passed now fails.
+- **Dark mode:** both reports follow the system theme and have a light/dark button; the choice is remembered.
 - **Ready for automation:** `-FailOn high` returns exit code 2 when a check of that severity fails, so it can run in a scheduled task or a pipeline. Every run also leaves a JSON record.
 
 ## Quick start
@@ -42,10 +44,11 @@ Audit several computers over WinRM (remoting must be enabled on them; an account
 .\HardenScope.ps1 -ComputerListPath .\computers.txt -FailOn critical
 ```
 
-Try it with the 12 fictitious demo computers, without reading any real one:
+Try it with the 12 fictitious demo computers, without reading any real one (`demo\previous` is the same fleet a month earlier):
 
 ```powershell
-.\HardenScope.ps1 -FactsPath .\demo\*.json -Open              # fleet report
+.\HardenScope.ps1 -FactsPath .\demo\previous\*.json -Quiet    # the audit of a month ago
+.\HardenScope.ps1 -FactsPath .\demo\*.json -Open              # today: fleet report with the changes
 .\HardenScope.ps1 -FactsPath .\demo\WS-SALES-07.json -Open    # one computer, grade C
 ```
 
@@ -54,6 +57,8 @@ Try it with the 12 fictitious demo computers, without reading any real one:
 | `-ComputerName <names>` | Computers to audit over WinRM (`localhost` is audited locally) |
 | `-ComputerListPath <txt>` | One computer per line; `#` starts a comment |
 | `-Credential`, `-ThrottleLimit` | Account for WinRM / computers contacted at the same time (32) |
+| `-NoCompare`, `-CompareWith <json>` | Do not compare with the previous audit / compare with a specific record |
+| `-FailOnRegression` | Exit code 3 when a check that passed in the previous audit now fails |
 | `-FleetFrom <folder>` | Rebuilds the fleet report from the newest record of every computer in a folder |
 | `-Open` | Opens the HTML report (the fleet report when there are several computers) |
 | `-Language en\|es` | Console language (by default, the language of Windows) |
@@ -70,6 +75,7 @@ src/Facts.ps1      reads the computer  ->  facts  { 'firewall.public': true, 'po
 src/Rules.ps1      facts + config/baseline.json  ->  Pass / Fail / Unknown / NotApplicable  ->  score
 src/Report.ps1     JSON record  +  HTML report (src/report-template.html)
 src/Remote.ps1     sends src/Facts.ps1 over WinRM and gets the facts back as JSON
+src/Compare.ps1    current results + previous record of the same computer  ->  fixed / regressed / score change
 src/Fleet.ps1      many records  ->  fleet summary  +  fleet report (src/fleet-template.html)
 ```
 
@@ -125,7 +131,7 @@ A fact that cannot be read (because a cmdlet is missing or needs administrator r
 
 ## Tests
 
-207 Pester tests and PSScriptAnalyzer run on every push in GitHub Actions (Windows PowerShell 5.1). They cover the rule engine, the parsers (`net accounts` in English and Spanish, the Security Center product state), the collectors with mocks, a live run on the CI computer, remoting with mocks and a real WinRM run against the CI computer, the fleet summary, the HTML reports and the exit codes.
+225 Pester tests and PSScriptAnalyzer run on every push in GitHub Actions (Windows PowerShell 5.1). They cover the rule engine, the parsers (`net accounts` in English and Spanish, the Security Center product state), the collectors with mocks, a live run on the CI computer, remoting with mocks and a real WinRM run against the CI computer, the fleet summary, the comparison between audits, the HTML reports (including their dark mode) and the exit codes.
 
 ```powershell
 Invoke-Pester -Path .\tests
@@ -134,8 +140,8 @@ Invoke-Pester -Path .\tests
 ## Roadmap
 
 1. ~~Local audit, baseline, score and HTML report~~
-2. ~~Several computers at once over WinRM and a fleet report~~ (this version)
-3. Changes between two runs (what got better, what got worse)
+2. ~~Several computers at once over WinRM and a fleet report~~
+3. ~~Changes between two runs (what got better, what got worse)~~ (this version)
 4. Integration with [PCScope](https://github.com/DavidGoRi/PCScope) (computer list) and [DeskScope](https://github.com/DavidGoRi/DeskScope) (a ticket for every critical failure)
 5. Version 1.0.0 with a live demo
 
