@@ -6,7 +6,7 @@
 .DESCRIPTION
     Builds the demo (tools/Build-Demo.ps1, fictitious data only) in a
     temporary folder and writes to docs/:
-      report.png, fleet.png          English, light theme
+      report.png, fleet.png          English, dark theme
       es/report.png, es/fleet.png    Spanish, dark theme
       social-preview.png             from tools/demo/social.html (1280x640,
                                      for the repository settings on GitHub)
@@ -42,9 +42,9 @@ function ConvertTo-FileUri([string] $Path) { return ([Uri] $Path).AbsoluteUri }
 
 $report = ConvertTo-FileUri (Join-Path $site 'reports\WS-SALES-07.html')
 $fleet = ConvertTo-FileUri (Join-Path $site 'reports\fleet.html')
-Save-Screenshot "$report`?lang=en&theme=light" (Join-Path $docs 'report.png') 1200 1300
+Save-Screenshot "$report`?lang=en&theme=dark" (Join-Path $docs 'report.png') 1200 1300
 Save-Screenshot "$report`?lang=es&theme=dark" (Join-Path $docs 'es\report.png') 1200 1300
-Save-Screenshot "$fleet`?lang=en&theme=light" (Join-Path $docs 'fleet.png') 1200 1250
+Save-Screenshot "$fleet`?lang=en&theme=dark" (Join-Path $docs 'fleet.png') 1200 1250
 Save-Screenshot "$fleet`?lang=es&theme=dark" (Join-Path $docs 'es\fleet.png') 1200 1250
 Save-Screenshot (ConvertTo-FileUri (Join-Path $PSScriptRoot 'demo\social.html')) (Join-Path $docs 'social-preview.png') 1280 640
 
