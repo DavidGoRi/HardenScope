@@ -10,7 +10,7 @@ BeforeAll {
 
 Describe 'Version and changelog' {
     It 'CHANGELOG.md has a section for the current version' {
-        [IO.File]::ReadAllText((Join-Path $repoRoot 'CHANGELOG.md')) | Should -Match ('(?m)^## \[' + [regex]::Escape($script:HSVersion) + '\] - \d{4}-\d{2}-\d{2}$')
+        [IO.File]::ReadAllText((Join-Path $repoRoot 'CHANGELOG.md')) | Should -Match ('(?m)^## \[' + [regex]::Escape($script:HSVersion) + '\] - \d{4}-\d{2}-\d{2}\r?$')  # CRLF on CI checkouts
     }
 
     It 'the Release workflow checks the tag against src\Report.ps1' {
