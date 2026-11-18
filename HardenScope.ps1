@@ -116,7 +116,7 @@ switch ($PSCmdlet.ParameterSetName) {
             $name = if ($saved.device.name) { $saved.device.name } elseif ($saved.computerName) { $saved.computerName } else { [IO.Path]::GetFileNameWithoutExtension($path) }
             $target = New-HSCollectionResult -ComputerName $name -Status 'OK' -Facts $saved.facts -Errors @($saved.errors | Where-Object { $_ })
             # Saved facts keep the date they were collected on
-            if ($saved.generatedAt) { $target | Add-Member -NotePropertyName GeneratedAt -NotePropertyValue ([datetime] $saved.generatedAt) }
+            if ($saved.generatedAt) { $target | Add-Member -NotePropertyName GeneratedAt -NotePropertyValue ([datetimeoffset] $saved.generatedAt) }
             $targets += $target
         }
         $fleetMode = $files.Count -gt 1
@@ -156,7 +156,8 @@ else {
     $okTargets = @($targets | Where-Object { $_.Status -eq 'OK' })
     if ($CompareWith -and $okTargets.Count -ne 1) { throw '-CompareWith works with a single computer' }
     foreach ($target in $okTargets) {
-        $when = if ($target.PSObject.Properties['GeneratedAt']) { $target.GeneratedAt } else { Get-Date }
+        # A date with its own offset: the record keeps the time zone it was collected in
+        $when = if ($target.PSObject.Properties['GeneratedAt']) { $target.GeneratedAt } else { [datetimeoffset] (Get-Date) }
         $results = @(Invoke-HSAssessment -Facts $target.Facts -Baseline $baseline)
         $score = Get-HSScore -Results $results
         $previous = $null
@@ -231,7 +232,7 @@ if (-not $Quiet) {
         if ($change) {
             $delta = if ($null -eq $change.scoreDelta) { '' } elseif ($change.scoreDelta -ge 0) { "+$($change.scoreDelta)" } else { [string] $change.scoreDelta }
             $deltaColor = if ($change.scoreDelta -gt 0) { 'Green' } elseif ($change.scoreDelta -lt 0) { 'Red' } else { 'Gray' }
-            Write-Host ("`n  {0} {1:yyyy-MM-dd HH:mm}: {2} -> {3} ({4}); {5} {6}, {7} {8}" -f $text.since, ([datetime] $change.previousAt), $change.previousScore, $score.score, $delta,
+            Write-Host ("`n  {0} {1:yyyy-MM-dd HH:mm}: {2} -> {3} ({4}); {5} {6}, {7} {8}" -f $text.since, ([datetimeoffset] $change.previousAt), $change.previousScore, $score.score, $delta,
                     @($change.fixed).Count, $text.fixedN, @($change.regressed).Count, $text.regressedN) -ForegroundColor $deltaColor
             foreach ($id in @($change.regressed)) {
                 $item = $one.Results | Where-Object { $_.Id -eq $id }

@@ -22,6 +22,13 @@ Describe 'New-HSRecord' {
         $record.facts['os.build'] | Should -Be 26100
     }
 
+    It 'keeps the time zone of the date it was collected on' {
+        # Any offset different from the local one: the CI computers run in UTC
+        $when = [datetimeoffset] '2026-10-19T09:30:00+05:00'
+        $dated = New-HSRecord -ComputerName 'WS-SALES-07' -Facts $facts -Baseline $baseline -Results $results -Score $score -GeneratedAt $when
+        $dated.generatedAt | Should -Be '2026-10-19T09:30:00+05:00'
+    }
+
     It 'round-trips through JSON' {
         $path = Join-Path $TestDrive 'record.json'
         Save-HSRecord -Record $record -Path $path

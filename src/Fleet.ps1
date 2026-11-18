@@ -37,7 +37,7 @@ function New-HSFleetRecord {
     param(
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Records,
         [object[]] $Unreachable = @(),
-        [datetime] $GeneratedAt = (Get-Date)
+        [datetimeoffset] $GeneratedAt = (Get-Date)
     )
     $computers = @($Records | Sort-Object -Property @{ Expression = { if ($null -eq $_.score.score) { 999 } else { $_.score.score } } }, @{ Expression = { $_.device.name } } | ForEach-Object {
             $report = $null

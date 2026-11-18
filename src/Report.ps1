@@ -15,7 +15,7 @@ function New-HSRecord {
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Results,
         [Parameter(Mandatory)] $Score,
         [string[]] $Errors = @(),
-        [datetime] $GeneratedAt = (Get-Date),
+        [datetimeoffset] $GeneratedAt = (Get-Date),
         # From Compare-HSResult: changes since the previous audit, or $null
         $Changes = $null
     )
