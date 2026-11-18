@@ -1,0 +1,13 @@
+# Reports of real computers: they describe the security gaps of the machine
+# they were made on. Never commit them.
+output/
+
+# Editors and OS
+.vscode/
+*.swp
+Thumbs.db
+desktop.ini
+
+# Build output
+_site/
+dist/

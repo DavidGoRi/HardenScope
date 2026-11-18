@@ -1,0 +1,307 @@
+{
+  "name": "HardenScope workstation baseline",
+  "version": "1.0",
+  "description": "Security checks for Windows 10/11 workstations, aligned with the CIS Microsoft Windows Benchmarks and the Microsoft Security Baseline. Every rule is read-only: HardenScope never changes the computer.",
+  "weights": { "critical": 10, "high": 6, "medium": 3, "low": 1 },
+  "rules": [
+    {
+      "id": "HS-SYS-01", "category": "System", "severity": "critical",
+      "fact": "os.build", "op": "ge", "value": 26100,
+      "when": { "fact": "os.ltsc", "op": "eq", "value": false },
+      "title": { "en": "Windows version still receives security updates", "es": "La versión de Windows sigue recibiendo parches de seguridad" },
+      "risk": { "en": "Windows 10 and Windows 11 23H2 or older no longer get security fixes: every new vulnerability stays open forever.", "es": "Windows 10 y Windows 11 23H2 o anteriores ya no reciben parches: cada vulnerabilidad nueva queda abierta para siempre." },
+      "fix": { "en": "Upgrade to Windows 11 24H2 or later.", "es": "Actualiza a Windows 11 24H2 o posterior." },
+      "reference": "Microsoft Lifecycle Policy"
+    },
+    {
+      "id": "HS-SYS-02", "category": "System", "severity": "critical",
+      "fact": "os.build", "op": "in", "value": [17763, 19044, 26100],
+      "when": { "fact": "os.ltsc", "op": "eq", "value": true },
+      "title": { "en": "LTSC edition is a supported release", "es": "La edición LTSC es una versión con soporte" },
+      "risk": { "en": "Only the LTSC 2019, 2021 and 2024 releases still get security updates.", "es": "Solo las LTSC 2019, 2021 y 2024 siguen recibiendo parches de seguridad." },
+      "fix": { "en": "Move to Windows 11 LTSC 2024.", "es": "Pasa a Windows 11 LTSC 2024." },
+      "reference": "Microsoft Lifecycle Policy"
+    },
+    {
+      "id": "HS-SYS-03", "category": "System", "severity": "high",
+      "fact": "updates.daysSinceLastUpdate", "op": "le", "value": 45,
+      "title": { "en": "Updates installed in the last 45 days", "es": "Actualizaciones instaladas en los últimos 45 días" },
+      "risk": { "en": "Microsoft publishes fixes every month; a computer that skips them is exposed to known, public exploits.", "es": "Microsoft publica parches cada mes; un equipo que se los salta queda expuesto a ataques ya conocidos y públicos." },
+      "fix": { "en": "Install the pending updates from Windows Update and check that the update service is not blocked.", "es": "Instala las actualizaciones pendientes desde Windows Update y comprueba que el servicio no esté bloqueado." },
+      "command": "Start-Process ms-settings:windowsupdate",
+      "reference": "CIS Control 7 (Continuous Vulnerability Management)"
+    },
+    {
+      "id": "HS-SYS-04", "category": "System", "severity": "low",
+      "fact": "reboot.pending", "op": "eq", "value": false,
+      "title": { "en": "No restart pending", "es": "Sin reinicio pendiente" },
+      "risk": { "en": "Installed updates do not protect the computer until it restarts.", "es": "Las actualizaciones instaladas no protegen el equipo hasta que se reinicia." },
+      "fix": { "en": "Restart the computer at a convenient time.", "es": "Reinicia el equipo cuando no moleste al usuario." },
+      "command": "Restart-Computer",
+      "reference": "Microsoft Security Baseline"
+    },
+    {
+      "id": "HS-SYS-05", "category": "System", "severity": "high",
+      "fact": "secureboot.enabled", "op": "eq", "value": true,
+      "title": { "en": "Secure Boot enabled", "es": "Arranque seguro (Secure Boot) activado" },
+      "risk": { "en": "Without Secure Boot a bootkit can load before Windows and hide from the antivirus.", "es": "Sin Secure Boot, un bootkit puede cargarse antes que Windows y esconderse del antivirus." },
+      "fix": { "en": "Enable Secure Boot in the UEFI firmware settings (the disk must use GPT).", "es": "Activa Secure Boot en la configuración UEFI del firmware (el disco debe ser GPT)." },
+      "reference": "Microsoft Security Baseline"
+    },
+    {
+      "id": "HS-SYS-06", "category": "System", "severity": "high",
+      "fact": "bitlocker.systemDrive", "op": "eq", "value": true,
+      "title": { "en": "System drive encrypted with BitLocker", "es": "Disco del sistema cifrado con BitLocker" },
+      "risk": { "en": "If the laptop is lost or stolen, anyone can read the disk and the company data on it.", "es": "Si se pierde o roban el portátil, cualquiera puede leer el disco y los datos de la empresa." },
+      "fix": { "en": "Turn on BitLocker and keep the recovery key in Active Directory or Entra ID before encrypting.", "es": "Activa BitLocker y guarda la clave de recuperación en Active Directory o Entra ID antes de cifrar." },
+      "command": "Enable-BitLocker -MountPoint $env:SystemDrive -EncryptionMethod XtsAes256 -TpmProtector; Add-BitLockerKeyProtector -MountPoint $env:SystemDrive -RecoveryPasswordProtector",
+      "reference": "CIS 18 (BitLocker Drive Encryption)"
+    },
+    {
+      "id": "HS-DEF-01", "category": "Defense", "severity": "critical",
+      "fact": "antivirus.active", "op": "eq", "value": true,
+      "title": { "en": "An antivirus is active", "es": "Hay un antivirus activo" },
+      "risk": { "en": "Without real-time protection, malware runs without anyone noticing.", "es": "Sin protección en tiempo real, el malware se ejecuta sin que nadie lo note." },
+      "fix": { "en": "Turn on Microsoft Defender real-time protection or check the company antivirus.", "es": "Activa la protección en tiempo real de Microsoft Defender o revisa el antivirus corporativo." },
+      "command": "Set-MpPreference -DisableRealtimeMonitoring $false",
+      "reference": "CIS Control 10 (Malware Defenses)"
+    },
+    {
+      "id": "HS-DEF-02", "category": "Defense", "severity": "high",
+      "fact": "antivirus.upToDate", "op": "eq", "value": true,
+      "when": { "fact": "antivirus.active", "op": "eq", "value": true },
+      "title": { "en": "Antivirus signatures up to date", "es": "Firmas del antivirus al día" },
+      "risk": { "en": "Old signatures do not detect the malware that is spreading this week.", "es": "Unas firmas antiguas no detectan el malware que circula esta semana." },
+      "fix": { "en": "Update the signatures and check that the computer reaches the update server.", "es": "Actualiza las firmas y comprueba que el equipo llega al servidor de actualizaciones." },
+      "command": "Update-MpSignature",
+      "reference": "CIS Control 10 (Malware Defenses)"
+    },
+    {
+      "id": "HS-DEF-03", "category": "Defense", "severity": "medium",
+      "fact": "defender.tamperProtected", "op": "eq", "value": true,
+      "when": { "fact": "defender.active", "op": "eq", "value": true },
+      "title": { "en": "Defender tamper protection on", "es": "Protección contra alteraciones de Defender activada" },
+      "risk": { "en": "Ransomware usually switches the antivirus off first; tamper protection blocks that.", "es": "El ransomware suele apagar primero el antivirus; la protección contra alteraciones lo impide." },
+      "fix": { "en": "Turn it on in Windows Security > Virus & threat protection, or centrally from Intune.", "es": "Actívala en Seguridad de Windows > Protección antivirus y contra amenazas, o desde Intune." },
+      "reference": "Microsoft Defender for Endpoint"
+    },
+    {
+      "id": "HS-DEF-04", "category": "Defense", "severity": "high",
+      "fact": "uac.enabled", "op": "eq", "value": true,
+      "title": { "en": "User Account Control (UAC) enabled", "es": "Control de cuentas de usuario (UAC) activado" },
+      "risk": { "en": "With UAC off every program runs as administrator, so any malware gets full control.", "es": "Con UAC apagado, todo se ejecuta como administrador y cualquier malware toma el control total." },
+      "fix": { "en": "Enable UAC and restart.", "es": "Activa UAC y reinicia." },
+      "command": "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name EnableLUA -Value 1 -Type DWord",
+      "reference": "CIS 2.3.17 (User Account Control)"
+    },
+    {
+      "id": "HS-DEF-05", "category": "Defense", "severity": "medium",
+      "fact": "uac.consentPromptBehaviorAdmin", "op": "ne", "value": 0,
+      "when": { "fact": "uac.enabled", "op": "eq", "value": true },
+      "title": { "en": "UAC asks administrators before elevating", "es": "UAC pide confirmación a los administradores" },
+      "risk": { "en": "\"Elevate without prompting\" lets any process become administrator silently.", "es": "\"Elevar sin preguntar\" deja que cualquier proceso se haga administrador en silencio." },
+      "fix": { "en": "Set it to prompt for consent on the secure desktop (value 2).", "es": "Configúralo para pedir consentimiento en el escritorio seguro (valor 2)." },
+      "command": "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name ConsentPromptBehaviorAdmin -Value 2 -Type DWord",
+      "reference": "CIS 2.3.17 (User Account Control)"
+    },
+    {
+      "id": "HS-DEF-06", "category": "Defense", "severity": "low",
+      "fact": "autorun.disabledAllDrives", "op": "eq", "value": true,
+      "title": { "en": "AutoRun disabled on all drives", "es": "Reproducción automática desactivada en todas las unidades" },
+      "risk": { "en": "A USB stick left in the car park can run code as soon as it is plugged in.", "es": "Un USB abandonado en el aparcamiento puede ejecutar código nada más conectarlo." },
+      "fix": { "en": "Disable AutoRun for every drive type.", "es": "Desactiva la ejecución automática para todos los tipos de unidad." },
+      "command": "New-Item -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer' -Force | Out-Null; Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer' -Name NoDriveTypeAutoRun -Value 255 -Type DWord",
+      "reference": "CIS 18 (AutoPlay Policies)"
+    },
+    {
+      "id": "HS-DEF-07", "category": "Defense", "severity": "medium",
+      "fact": "powershell.v2Present", "op": "eq", "value": false,
+      "title": { "en": "PowerShell 2.0 removed", "es": "PowerShell 2.0 eliminado" },
+      "risk": { "en": "Attackers start PowerShell 2.0 to skip script logging and AMSI.", "es": "Los atacantes arrancan PowerShell 2.0 para saltarse el registro de scripts y AMSI." },
+      "fix": { "en": "Remove the Windows PowerShell 2.0 optional feature.", "es": "Quita la característica opcional Windows PowerShell 2.0." },
+      "command": "Disable-WindowsOptionalFeature -Online -FeatureName MicrosoftWindowsPowerShellV2Root -NoRestart",
+      "reference": "Microsoft Security Baseline"
+    },
+    {
+      "id": "HS-NET-01", "category": "Network", "severity": "critical",
+      "fact": "firewall.domain", "op": "eq", "value": true,
+      "title": { "en": "Firewall on: domain profile", "es": "Cortafuegos activado: perfil de dominio" },
+      "risk": { "en": "Inside the office network, any other infected computer can reach this one's open ports.", "es": "Dentro de la red de la oficina, cualquier equipo infectado llega a los puertos abiertos de este." },
+      "fix": { "en": "Turn the domain profile on.", "es": "Activa el perfil de dominio." },
+      "command": "Set-NetFirewallProfile -Profile Domain -Enabled True",
+      "reference": "CIS 9.1 (Domain Profile)"
+    },
+    {
+      "id": "HS-NET-02", "category": "Network", "severity": "critical",
+      "fact": "firewall.private", "op": "eq", "value": true,
+      "title": { "en": "Firewall on: private profile", "es": "Cortafuegos activado: perfil privado" },
+      "risk": { "en": "Home and trusted networks are not always safe: one infected device is enough.", "es": "Las redes de casa o de confianza no siempre son seguras: basta un dispositivo infectado." },
+      "fix": { "en": "Turn the private profile on.", "es": "Activa el perfil privado." },
+      "command": "Set-NetFirewallProfile -Profile Private -Enabled True",
+      "reference": "CIS 9.2 (Private Profile)"
+    },
+    {
+      "id": "HS-NET-03", "category": "Network", "severity": "critical",
+      "fact": "firewall.public", "op": "eq", "value": true,
+      "title": { "en": "Firewall on: public profile", "es": "Cortafuegos activado: perfil público" },
+      "risk": { "en": "On hotel or airport Wi-Fi the computer is exposed to strangers.", "es": "En la wifi de un hotel o un aeropuerto el equipo queda expuesto a desconocidos." },
+      "fix": { "en": "Turn the public profile on.", "es": "Activa el perfil público." },
+      "command": "Set-NetFirewallProfile -Profile Public -Enabled True",
+      "reference": "CIS 9.3 (Public Profile)"
+    },
+    {
+      "id": "HS-NET-04", "category": "Network", "severity": "medium",
+      "fact": "firewall.inboundBlocked", "op": "eq", "value": true,
+      "title": { "en": "Firewall blocks unsolicited inbound traffic", "es": "El cortafuegos bloquea el tráfico entrante no solicitado" },
+      "risk": { "en": "A profile that allows inbound traffic by default is almost the same as having no firewall.", "es": "Un perfil que permite por defecto el tráfico entrante es casi como no tener cortafuegos." },
+      "fix": { "en": "Set the default inbound action to Block on every profile.", "es": "Pon la acción de entrada por defecto en Bloquear en todos los perfiles." },
+      "command": "Set-NetFirewallProfile -Profile Domain,Private,Public -DefaultInboundAction Block",
+      "reference": "CIS 9 (Windows Defender Firewall)"
+    },
+    {
+      "id": "HS-NET-05", "category": "Network", "severity": "critical",
+      "fact": "smb.v1Enabled", "op": "eq", "value": false,
+      "title": { "en": "SMBv1 disabled", "es": "SMBv1 desactivado" },
+      "risk": { "en": "SMBv1 is the protocol WannaCry and NotPetya used to spread across whole companies.", "es": "SMBv1 es el protocolo con el que WannaCry y NotPetya se extendieron por empresas enteras." },
+      "fix": { "en": "Remove the SMB 1.0/CIFS feature.", "es": "Quita la característica SMB 1.0/CIFS." },
+      "command": "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart",
+      "reference": "CIS 18 (MS Security Guide)"
+    },
+    {
+      "id": "HS-NET-06", "category": "Network", "severity": "medium",
+      "fact": "smb.signingRequired", "op": "eq", "value": true,
+      "title": { "en": "SMB client requires signing", "es": "El cliente SMB exige firma" },
+      "risk": { "en": "Unsigned SMB traffic can be intercepted and relayed to take over sessions.", "es": "El tráfico SMB sin firmar se puede interceptar y reenviar para suplantar sesiones." },
+      "fix": { "en": "Require signing on the SMB client.", "es": "Exige la firma en el cliente SMB." },
+      "command": "Set-SmbClientConfiguration -RequireSecuritySignature $true -Force",
+      "reference": "CIS 2.3.8 (Microsoft network client)"
+    },
+    {
+      "id": "HS-NET-07", "category": "Network", "severity": "medium",
+      "fact": "llmnr.disabled", "op": "eq", "value": true,
+      "title": { "en": "LLMNR name resolution disabled", "es": "Resolución de nombres LLMNR desactivada" },
+      "risk": { "en": "Tools like Responder answer LLMNR queries and capture password hashes on the local network.", "es": "Herramientas como Responder contestan a LLMNR y capturan hashes de contraseñas en la red local." },
+      "fix": { "en": "Disable multicast name resolution by policy.", "es": "Desactiva la resolución de nombres multidifusión por directiva." },
+      "command": "New-Item -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient' -Force | Out-Null; Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient' -Name EnableMulticast -Value 0 -Type DWord",
+      "reference": "CIS 18.6 (DNS Client)"
+    },
+    {
+      "id": "HS-NET-08", "category": "Network", "severity": "high",
+      "fact": "rdp.nla", "op": "eq", "value": true,
+      "when": { "fact": "rdp.enabled", "op": "eq", "value": true },
+      "title": { "en": "Remote Desktop requires Network Level Authentication", "es": "Escritorio remoto exige autenticación a nivel de red (NLA)" },
+      "risk": { "en": "Without NLA the login screen is exposed before authenticating, as BlueKeep showed.", "es": "Sin NLA, la pantalla de inicio queda expuesta antes de autenticarse, como demostró BlueKeep." },
+      "fix": { "en": "Require NLA for Remote Desktop connections.", "es": "Exige NLA para las conexiones de escritorio remoto." },
+      "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp' -Name UserAuthentication -Value 1 -Type DWord",
+      "reference": "CIS 18 (Remote Desktop Session Host)"
+    },
+    {
+      "id": "HS-NET-09", "category": "Network", "severity": "low",
+      "fact": "services.remoteRegistry", "op": "eq", "value": "Disabled",
+      "title": { "en": "Remote Registry service disabled", "es": "Servicio Registro remoto desactivado" },
+      "risk": { "en": "Remote Registry lets other computers read the registry and helps attackers move through the network.", "es": "Registro remoto deja que otros equipos lean el registro y ayuda a moverse por la red." },
+      "fix": { "en": "Stop and disable the service unless a management tool needs it.", "es": "Detén y desactiva el servicio salvo que lo necesite una herramienta de gestión." },
+      "command": "Stop-Service -Name RemoteRegistry -Force; Set-Service -Name RemoteRegistry -StartupType Disabled",
+      "reference": "CIS 5 (System Services)"
+    },
+    {
+      "id": "HS-ACC-01", "category": "Accounts", "severity": "medium",
+      "fact": "accounts.guestEnabled", "op": "eq", "value": false,
+      "title": { "en": "Guest account disabled", "es": "Cuenta de invitado desactivada" },
+      "risk": { "en": "The guest account lets anyone log on without a password.", "es": "La cuenta de invitado deja entrar a cualquiera sin contraseña." },
+      "fix": { "en": "Disable the built-in guest account.", "es": "Desactiva la cuenta de invitado integrada." },
+      "command": "Get-LocalUser | Where-Object { $_.SID -like '*-501' } | Disable-LocalUser",
+      "reference": "CIS 2.3.1 (Accounts)"
+    },
+    {
+      "id": "HS-ACC-02", "category": "Accounts", "severity": "medium",
+      "fact": "accounts.builtinAdminEnabled", "op": "eq", "value": false,
+      "title": { "en": "Built-in Administrator account disabled", "es": "Cuenta Administrador integrada desactivada" },
+      "risk": { "en": "Everyone knows its name and it is never locked out, so it is the first target of password guessing.", "es": "Todo el mundo conoce su nombre y nunca se bloquea: es el primer objetivo de los ataques de contraseñas." },
+      "fix": { "en": "Disable it and use named administrator accounts (and LAPS for the local one).", "es": "Desactívala y usa cuentas de administrador nominales (y LAPS para la local)." },
+      "command": "Get-LocalUser | Where-Object { $_.SID -like '*-500' } | Disable-LocalUser",
+      "reference": "CIS 2.3.1 (Accounts)"
+    },
+    {
+      "id": "HS-ACC-03", "category": "Accounts", "severity": "medium",
+      "fact": "accounts.localAdminCount", "op": "le", "value": 2,
+      "title": { "en": "Two or fewer local administrators", "es": "Dos administradores locales como mucho" },
+      "risk": { "en": "Every extra administrator is another account that can install malware or switch defences off.", "es": "Cada administrador de más es otra cuenta capaz de instalar malware o apagar las defensas." },
+      "fix": { "en": "Review the members of the Administrators group and remove the ones that do not need it.", "es": "Revisa el grupo Administradores y quita a quien no lo necesite." },
+      "command": "Get-LocalGroupMember -SID S-1-5-32-544",
+      "reference": "CIS Control 5 (Account Management)"
+    },
+    {
+      "id": "HS-ACC-04", "category": "Accounts", "severity": "high",
+      "fact": "policy.minPasswordLength", "op": "ge", "value": 14,
+      "title": { "en": "Minimum password length of 14 characters", "es": "Longitud mínima de contraseña de 14 caracteres" },
+      "risk": { "en": "Short passwords fall to brute force in minutes.", "es": "Las contraseñas cortas caen por fuerza bruta en minutos." },
+      "fix": { "en": "Set the minimum length to 14 (by GPO in a domain).", "es": "Pon la longitud mínima en 14 (por GPO si hay dominio)." },
+      "command": "net accounts /minpwlen:14",
+      "reference": "CIS 1.1.4 (Minimum password length)"
+    },
+    {
+      "id": "HS-ACC-05", "category": "Accounts", "severity": "medium",
+      "fact": "policy.lockoutThreshold", "op": "between", "value": [1, 5],
+      "title": { "en": "Account locks after 5 failed attempts or fewer", "es": "La cuenta se bloquea tras 5 intentos fallidos o menos" },
+      "risk": { "en": "Without a lockout an attacker can try passwords forever.", "es": "Sin bloqueo, un atacante puede probar contraseñas sin límite." },
+      "fix": { "en": "Set the lockout threshold to 5.", "es": "Pon el umbral de bloqueo en 5." },
+      "command": "net accounts /lockoutthreshold:5",
+      "reference": "CIS 1.2.2 (Account lockout threshold)"
+    },
+    {
+      "id": "HS-ACC-06", "category": "Accounts", "severity": "low",
+      "fact": "screen.lockTimeoutSecs", "op": "between", "value": [1, 900],
+      "title": { "en": "Screen locks after 15 minutes idle", "es": "La pantalla se bloquea tras 15 minutos de inactividad" },
+      "risk": { "en": "An unlocked computer left on a desk gives anyone the user's session.", "es": "Un equipo desbloqueado en una mesa le da a cualquiera la sesión del usuario." },
+      "fix": { "en": "Set the machine inactivity limit to 900 seconds.", "es": "Pon el límite de inactividad del equipo en 900 segundos." },
+      "command": "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name InactivityTimeoutSecs -Value 900 -Type DWord",
+      "reference": "CIS 2.3.7.3 (Machine inactivity limit)"
+    },
+    {
+      "id": "HS-CRED-01", "category": "Credentials", "severity": "critical",
+      "fact": "winlogon.autoLogon", "op": "eq", "value": false,
+      "title": { "en": "No automatic logon", "es": "Sin inicio de sesión automático" },
+      "risk": { "en": "Automatic logon keeps the password in the registry and opens the session to whoever turns the computer on.", "es": "El inicio automático guarda la contraseña en el registro y abre la sesión a quien encienda el equipo." },
+      "fix": { "en": "Turn automatic logon off and delete the stored password.", "es": "Desactiva el inicio automático y borra la contraseña guardada." },
+      "command": "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon' -Name AutoAdminLogon -Value '0'; Remove-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon' -Name DefaultPassword -ErrorAction SilentlyContinue",
+      "reference": "CIS 18 (MSS: AutoAdminLogon)"
+    },
+    {
+      "id": "HS-CRED-02", "category": "Credentials", "severity": "high",
+      "fact": "wdigest.cleartext", "op": "eq", "value": false,
+      "title": { "en": "WDigest does not keep passwords in memory", "es": "WDigest no guarda contraseñas en memoria" },
+      "risk": { "en": "With WDigest on, Mimikatz reads the passwords of logged-on users in clear text.", "es": "Con WDigest activo, Mimikatz lee en claro las contraseñas de los usuarios conectados." },
+      "fix": { "en": "Set UseLogonCredential to 0.", "es": "Pon UseLogonCredential a 0." },
+      "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest' -Name UseLogonCredential -Value 0 -Type DWord",
+      "reference": "CIS 18 (MS Security Guide: WDigest)"
+    },
+    {
+      "id": "HS-CRED-03", "category": "Credentials", "severity": "medium",
+      "fact": "lsa.protected", "op": "eq", "value": true,
+      "title": { "en": "LSA protection enabled", "es": "Protección de LSA activada" },
+      "risk": { "en": "Without it, any administrator process can dump the credentials kept by LSASS.", "es": "Sin ella, cualquier proceso administrador puede volcar las credenciales que guarda LSASS." },
+      "fix": { "en": "Enable LSA protection (RunAsPPL) and restart; test drivers and smart-card plug-ins first.", "es": "Activa la protección de LSA (RunAsPPL) y reinicia; prueba antes los controladores y complementos de tarjetas inteligentes." },
+      "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa' -Name RunAsPPL -Value 1 -Type DWord",
+      "reference": "Microsoft Security Baseline"
+    },
+    {
+      "id": "HS-CRED-04", "category": "Credentials", "severity": "medium",
+      "fact": "ntlm.level", "op": "ge", "value": 5,
+      "title": { "en": "Only NTLMv2 is sent; LM and NTLMv1 refused", "es": "Solo se envía NTLMv2; LM y NTLMv1 rechazados" },
+      "risk": { "en": "LM and NTLMv1 hashes are cracked in seconds.", "es": "Los hashes LM y NTLMv1 se descifran en segundos." },
+      "fix": { "en": "Set LAN Manager authentication level to 5 after checking no old device depends on NTLMv1.", "es": "Pon el nivel de autenticación de LAN Manager en 5 tras comprobar que ningún dispositivo antiguo depende de NTLMv1." },
+      "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa' -Name LmCompatibilityLevel -Value 5 -Type DWord",
+      "reference": "CIS 2.3.11.7 (LAN Manager authentication level)"
+    },
+    {
+      "id": "HS-CRED-05", "category": "Credentials", "severity": "medium",
+      "fact": "lsa.restrictAnonymousSam", "op": "eq", "value": true,
+      "title": { "en": "Anonymous users cannot list accounts", "es": "Los anónimos no pueden listar las cuentas" },
+      "risk": { "en": "Anonymous enumeration hands an attacker the list of user names to attack.", "es": "La enumeración anónima le da al atacante la lista de usuarios a los que atacar." },
+      "fix": { "en": "Set RestrictAnonymousSAM to 1.", "es": "Pon RestrictAnonymousSAM a 1." },
+      "command": "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa' -Name RestrictAnonymousSAM -Value 1 -Type DWord",
+      "reference": "CIS 2.3.10 (Network access)"
+    }
+  ]
+}

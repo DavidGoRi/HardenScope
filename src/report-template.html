@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HardenScope report</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #5d6673; --line: #e2e5ea;
+  --accent: #2f6fdf; --pass: #1f8a4c; --fail: #c8372d; --unknown: #8a8f98;
+  --critical: #b3261e; --high: #d9622b; --medium: #c99a06; --low: #4f7fb8;
+  --code: #f0f2f5; --shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --panel: #1a1e24; --text: #e7eaee; --muted: #9aa3ae; --line: #2b313a;
+    --accent: #6c9cff; --pass: #4cc283; --fail: #ff6b5e; --unknown: #8a919c;
+    --critical: #ff6b5e; --high: #ff9a5c; --medium: #f0c445; --low: #7fa8de; --code: #23282f;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418; --panel: #1a1e24; --text: #e7eaee; --muted: #9aa3ae; --line: #2b313a;
+  --accent: #6c9cff; --pass: #4cc283; --fail: #ff6b5e; --unknown: #8a919c;
+  --critical: #ff6b5e; --high: #ff9a5c; --medium: #f0c445; --low: #7fa8de; --code: #23282f;
+  --shadow: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; }
+.brand svg { width: 28px; height: 28px; color: var(--accent); }
+.device { color: var(--muted); font-size: 14px; }
+.device strong { color: var(--text); }
+.toolbar { display: flex; gap: 6px; }
+button, select, input { font: inherit; color: inherit; }
+.seg button { background: var(--panel); border: 1px solid var(--line); padding: 4px 10px; cursor: pointer; }
+.seg button:first-child { border-radius: 6px 0 0 6px; }
+.seg button:last-child { border-radius: 0 6px 6px 0; }
+.seg button + button { border-left: none; }
+.seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 18px; }
+.hero { display: grid; grid-template-columns: 180px 1fr; gap: 24px; align-items: center; margin-bottom: 16px; }
+.ring { position: relative; width: 160px; height: 160px; margin: 0 auto; }
+.ring svg { transform: rotate(-90deg); }
+.ring .value { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ring .num { font-size: 40px; font-weight: 700; line-height: 1; }
+.ring .of { color: var(--muted); font-size: 13px; }
+.grade { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px;
+  font-size: 30px; line-height: 1; font-weight: 700; color: #fff; margin-right: 12px; vertical-align: middle; }
+.verdict { font-size: 18px; font-weight: 600; }
+.note { color: var(--muted); font-size: 13px; margin-top: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.cats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.cat h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--pass); }
+.cat .small { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 22px 0 12px; }
+.filters h2 { margin: 0 auto 0 0; font-size: 18px; }
+.filters select, .filters input { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+.filters input { min-width: 0; width: 180px; }
+.finding { border: 1px solid var(--line); border-left: 4px solid var(--unknown); border-radius: 8px; background: var(--panel); margin-bottom: 8px; }
+.finding.Fail { border-left-color: var(--fail); }
+.finding.Pass { border-left-color: var(--pass); }
+.finding summary { list-style: none; cursor: pointer; padding: 10px 14px; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.finding summary::-webkit-details-marker { display: none; }
+.sev { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #fff; border-radius: 4px; padding: 2px 6px; }
+.status { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.status.Fail { color: var(--fail); } .status.Pass { color: var(--pass); } .status.Unknown, .status.NotApplicable { color: var(--unknown); }
+.ftitle { font-weight: 600; }
+.fmeta { color: var(--muted); font-size: 12px; }
+.body { padding: 0 14px 14px 14px; border-top: 1px solid var(--line); }
+.body h4 { margin: 12px 0 2px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.body p { margin: 0; }
+.cmd { display: flex; gap: 8px; align-items: flex-start; margin-top: 4px; }
+.cmd code { flex: 1; background: var(--code); border-radius: 6px; padding: 8px 10px; font: 12.5px/1.45 Consolas, monospace; overflow-wrap: anywhere; }
+.cmd button { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+.empty { color: var(--muted); text-align: center; padding: 24px; }
+.errors { margin-top: 16px; color: var(--muted); font-size: 13px; }
+footer { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: center; }
+@media (max-width: 640px) {
+  .hero { grid-template-columns: 1fr; text-align: center; }
+  .chips { justify-content: center; }
+  .filters input { width: 100%; }
+  .finding summary { grid-template-columns: auto 1fr; }
+  .finding summary .status { grid-column: 2; }
+}
+@media print {
+  .toolbar, .filters select, .filters input, .cmd button { display: none; }
+  .finding { break-inside: avoid; }
+  body { background: #fff; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>
+        HardenScope
+      </div>
+      <div class="device" id="device"></div>
+    </div>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button><button type="button" data-lang="es">ES</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="panel hero">
+    <div class="ring">
+      <svg width="160" height="160" viewBox="0 0 160 160" aria-hidden="true">
+        <circle cx="80" cy="80" r="68" fill="none" stroke="var(--line)" stroke-width="14"/>
+        <circle id="arc" cx="80" cy="80" r="68" fill="none" stroke="var(--pass)" stroke-width="14" stroke-linecap="round" stroke-dasharray="0 999"/>
+      </svg>
+      <div class="value"><span class="num" id="score">-</span><span class="of" data-i18n="outOf"></span></div>
+    </div>
+    <div>
+      <div><span class="grade" id="grade">-</span><span class="verdict" id="verdict"></span></div>
+      <div class="note" id="note"></div>
+      <div class="chips" id="chips"></div>
+    </div>
+  </section>
+
+  <section class="cats" id="cats"></section>
+
+  <div class="filters">
+    <h2 data-i18n="checks"></h2>
+    <div class="seg" role="group" id="statusFilter">
+      <button type="button" data-status="Fail" data-i18n="fFail"></button><button type="button" data-status="Pass" data-i18n="fPass"></button><button type="button" data-status="Other" data-i18n="fOther"></button><button type="button" data-status="All" data-i18n="fAll"></button>
+    </div>
+    <select id="sevFilter" aria-label="Severity"></select>
+    <input id="search" type="search" aria-label="Search">
+  </div>
+  <div id="list"></div>
+  <div class="errors" id="errors"></div>
+  <footer id="footer"></footer>
+</div>
+
+<script id="hs-data" type="application/json">/*__DATA__*/null</script>
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById('hs-data').textContent);
+  var I18N = {
+    en: {
+      outOf: 'out of 100', checks: 'Checks', fFail: 'Failed', fPass: 'Passed', fOther: 'Other', fAll: 'All',
+      allSev: 'All severities', search: 'Search...', critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low',
+      Pass: 'Passed', Fail: 'Failed', Unknown: 'Unknown', NotApplicable: 'Not applicable',
+      risk: 'Why it matters', fix: 'How to fix it', command: 'PowerShell (run as administrator, review it first)',
+      reference: 'Reference', actual: 'Found', expected: 'expected', copy: 'Copy', copied: 'Copied',
+      none: 'No checks match the filters.', passedOf: '{p} of {t} checks passed',
+      capped: 'A critical check failed, so the grade cannot be higher than C.',
+      vA: 'Well hardened', vB: 'Good, with some gaps', vC: 'Needs work', vD: 'Weak', vF: 'Exposed',
+      errors: 'Some data could not be read:', footer: 'Read-only audit: HardenScope did not change anything on this computer. Baseline: {b}. Generated by HardenScope {v}.',
+      categories: { System: 'System', Defense: 'Defense', Network: 'Network', Accounts: 'Accounts', Credentials: 'Credentials' },
+      failedN: '{n} failed', failed1: '{n} failed', yes: 'yes', no: 'no', not: 'not', oneOf: 'one of'
+    },
+    es: {
+      outOf: 'sobre 100', checks: 'Comprobaciones', fFail: 'Fallos', fPass: 'Correctas', fOther: 'Otras', fAll: 'Todas',
+      allSev: 'Todas las gravedades', search: 'Buscar...', critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja',
+      Pass: 'Correcta', Fail: 'Fallo', Unknown: 'Desconocida', NotApplicable: 'No aplica',
+      risk: 'Por qué importa', fix: 'Cómo arreglarlo', command: 'PowerShell (como administrador y tras revisarlo)',
+      reference: 'Referencia', actual: 'Encontrado', expected: 'esperado', copy: 'Copiar', copied: 'Copiado',
+      none: 'Ninguna comprobación coincide con los filtros.', passedOf: '{p} de {t} comprobaciones correctas',
+      capped: 'Ha fallado una comprobación crítica, así que la nota no puede pasar de C.',
+      vA: 'Bien bastionado', vB: 'Bien, con algunas carencias', vC: 'Necesita trabajo', vD: 'Débil', vF: 'Expuesto',
+      errors: 'No se pudieron leer algunos datos:', footer: 'Auditoría de solo lectura: HardenScope no ha cambiado nada en este equipo. Línea base: {b}. Generado por HardenScope {v}.',
+      categories: { System: 'Sistema', Defense: 'Defensa', Network: 'Red', Accounts: 'Cuentas', Credentials: 'Credenciales' },
+      failedN: '{n} fallos', failed1: '{n} fallo', yes: 'sí', no: 'no', not: 'distinto de', oneOf: 'una de'
+    }
+  };
+  var SEVERITIES = ['critical', 'high', 'medium', 'low'];
+  var GRADE_COLOR = { A: 'var(--pass)', B: 'var(--pass)', C: 'var(--medium)', D: 'var(--high)', F: 'var(--fail)' };
+  var lang = 'en', statusFilter = 'Fail';
+  try { lang = localStorage.getItem('hs-lang') || ''; } catch (e) { lang = ''; }
+  var qs = /[?&]lang=(en|es)/.exec(location.search);
+  if (qs) lang = qs[1];
+  var theme = /[?&]theme=(light|dark)/.exec(location.search);
+  if (theme) document.documentElement.setAttribute('data-theme', theme[1]);
+  if (lang !== 'en' && lang !== 'es') lang = (navigator.language || '').slice(0, 2) === 'es' ? 'es' : 'en';
+
+  function t(key, vars) {
+    var s = I18N[lang][key] || key;
+    for (var k in vars || {}) s = s.replace('{' + k + '}', vars[k]);
+    return s;
+  }
+  function tr(obj) { return obj ? (obj[lang] || obj.en || '') : ''; }
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function fmt(v) {
+    if (v === null || v === undefined) return '?';
+    if (v === true) return t('yes');
+    if (v === false) return t('no');
+    return String(v);
+  }
+  function expected(r) {
+    var v = r.value;
+    switch (r.op) {
+      case 'eq': return fmt(v);
+      case 'ne': return t('not') + ' ' + fmt(v);
+      case 'ge': return '>= ' + fmt(v);
+      case 'le': return '<= ' + fmt(v);
+      case 'in': return t('oneOf') + ' ' + [].concat(v).join(', ');
+      case 'between': return v[0] + ' - ' + v[1];
+      default: return r.expected || '';
+    }
+  }
+  function $(id) { return document.getElementById(id); }
+
+  function renderStatic() {
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach(function (el) { el.textContent = t(el.getAttribute('data-i18n')); });
+    document.querySelectorAll('[data-lang]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-lang') === lang); });
+    document.querySelectorAll('[data-status]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-status') === statusFilter); });
+    $('search').placeholder = t('search');
+    var sev = $('sevFilter'), current = sev.value;
+    sev.innerHTML = '<option value="">' + esc(t('allSev')) + '</option>' + SEVERITIES.map(function (s) { return '<option value="' + s + '">' + esc(t(s)) + '</option>'; }).join('');
+    sev.value = current;
+
+    var d = data.device;
+    var when = new Date(data.generatedAt);
+    $('device').innerHTML = '<strong>' + esc(d.name) + '</strong> · ' + esc(d.os) + ' · ' + esc(when.toLocaleString(lang === 'es' ? 'es-ES' : 'en-GB'));
+
+    var s = data.score;
+    $('score').textContent = s.score === null ? '-' : s.score;
+    $('arc').setAttribute('stroke-dasharray', (2 * Math.PI * 68 * (s.score || 0) / 100) + ' 999');
+    $('arc').setAttribute('stroke', GRADE_COLOR[s.grade] || 'var(--unknown)');
+    $('grade').textContent = s.grade || '-';
+    $('grade').style.background = GRADE_COLOR[s.grade] || 'var(--unknown)';
+    $('verdict').textContent = s.grade ? t('v' + s.grade) : '';
+    var note = t('passedOf', { p: s.passed, t: s.passed + s.failed });
+    if (s.failedBySeverity.critical > 0) note += ' · ' + t('capped');
+    $('note').textContent = note;
+    $('chips').innerHTML = SEVERITIES.map(function (sv) {
+      return '<span class="chip"><span class="dot" style="background:var(--' + sv + ')"></span>' + esc(t(sv)) + ': ' + esc(t(s.failedBySeverity[sv] === 1 ? 'failed1' : 'failedN', { n: s.failedBySeverity[sv] })) + '</span>';
+    }).join('') + '<span class="chip"><span class="dot" style="background:var(--unknown)"></span>' + esc(t('Unknown')) + ': ' + s.unknown + '</span>';
+
+    var cats = {};
+    data.results.forEach(function (r) {
+      if (r.status !== 'Pass' && r.status !== 'Fail') return;
+      var c = cats[r.category] = cats[r.category] || { pass: 0, total: 0 };
+      c.total++; if (r.status === 'Pass') c.pass++;
+    });
+    $('cats').innerHTML = Object.keys(cats).map(function (name) {
+      var c = cats[name], pct = Math.round(100 * c.pass / c.total);
+      return '<div class="panel cat"><h3>' + esc(I18N[lang].categories[name] || name) + '</h3><div class="bar"><span style="width:' + pct + '%"></span></div><div class="small">' + c.pass + ' / ' + c.total + '</div></div>';
+    }).join('');
+
+    $('errors').innerHTML = (data.errors && data.errors.length) ? esc(t('errors')) + '<br>' + data.errors.map(esc).join('<br>') : '';
+    $('footer').textContent = t('footer', { b: data.baseline.name + ' ' + data.baseline.version, v: data.version });
+    renderList();
+  }
+
+  function renderList() {
+    var sev = $('sevFilter').value, q = $('search').value.trim().toLowerCase();
+    var order = { Fail: 0, Unknown: 1, Pass: 2, NotApplicable: 3 };
+    var rows = data.results.filter(function (r) {
+      if (statusFilter === 'Fail' && r.status !== 'Fail') return false;
+      if (statusFilter === 'Pass' && r.status !== 'Pass') return false;
+      if (statusFilter === 'Other' && (r.status === 'Pass' || r.status === 'Fail')) return false;
+      if (sev && r.severity !== sev) return false;
+      if (q && (r.id + ' ' + tr(r.title) + ' ' + tr(r.risk)).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    }).sort(function (a, b) {
+      return (order[a.status] - order[b.status]) || (SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity)) || a.id.localeCompare(b.id);
+    });
+    if (!rows.length) { $('list').innerHTML = '<div class="empty">' + esc(t('none')) + '</div>'; return; }
+    $('list').innerHTML = rows.map(function (r, i) {
+      var cmd = r.command ? '<h4>' + esc(t('command')) + '</h4><div class="cmd"><code id="cmd' + i + '">' + esc(r.command) + '</code><button type="button" data-copy="cmd' + i + '">' + esc(t('copy')) + '</button></div>' : '';
+      return '<details class="finding ' + r.status + '"><summary>' +
+        '<span class="sev" style="background:var(--' + r.severity + ')">' + esc(t(r.severity)) + '</span>' +
+        '<span><span class="ftitle">' + esc(tr(r.title)) + '</span><br><span class="fmeta">' + esc(r.id) + ' · ' + esc(I18N[lang].categories[r.category] || r.category) +
+        ' · ' + esc(t('actual')) + ': ' + esc(fmt(r.actual)) + ' (' + esc(t('expected')) + ' ' + esc(expected(r)) + ')</span></span>' +
+        '<span class="status ' + r.status + '">' + esc(t(r.status)) + '</span></summary>' +
+        '<div class="body"><h4>' + esc(t('risk')) + '</h4><p>' + esc(tr(r.risk)) + '</p>' +
+        '<h4>' + esc(t('fix')) + '</h4><p>' + esc(tr(r.fix)) + '</p>' + cmd +
+        (r.reference ? '<h4>' + esc(t('reference')) + '</h4><p>' + esc(r.reference) + '</p>' : '') + '</div></details>';
+    }).join('');
+  }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.hasAttribute('data-lang')) {
+      lang = b.getAttribute('data-lang');
+      try { localStorage.setItem('hs-lang', lang); } catch (err) { /* private mode */ }
+      renderStatic();
+    } else if (b.hasAttribute('data-status')) {
+      statusFilter = b.getAttribute('data-status');
+      renderStatic();
+    } else if (b.hasAttribute('data-copy')) {
+      var text = document.getElementById(b.getAttribute('data-copy')).textContent;
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { b.textContent = t('copied'); });
+    }
+  });
+  $('sevFilter').addEventListener('change', renderList);
+  $('search').addEventListener('input', renderList);
+  renderStatic();
+})();
+</script>
+</body>
+</html>
