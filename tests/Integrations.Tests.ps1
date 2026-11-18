@@ -81,9 +81,15 @@ Describe 'HardenScope.ps1 -DeskScopeUrl' {
         $out = Join-Path $TestDrive 'unreachable'
         $env:DESKSCOPE_TOKEN = 'dsk_test'
         try {
-            # Port 9 (discard) is closed on a normal computer: the connection is refused at once
-            & $powershell -NoProfile -ExecutionPolicy Bypass -File $entryPoint -FactsPath (Join-Path $repoRoot 'demo\WS-SALES-07.json') -OutputPath $out -Quiet -DeskScopeUrl 'http://127.0.0.1:9' 2>$null
-            $LASTEXITCODE | Should -Be 4
+            # Port 9 (discard) is closed on a normal computer: the connection is refused at once.
+            # A separate process with its streams in files: the error message on stderr must
+            # not turn into an exception in this session (it does on the CI runners).
+            $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$entryPoint`"", '-FactsPath',
+                "`"$(Join-Path $repoRoot 'demo\WS-SALES-07.json')`"", '-OutputPath', "`"$out`"", '-Quiet', '-DeskScopeUrl', 'http://127.0.0.1:9')
+            $process = Start-Process -FilePath $powershell -ArgumentList $arguments -Wait -PassThru -NoNewWindow `
+                -RedirectStandardError (Join-Path $TestDrive 'stderr.txt') -RedirectStandardOutput (Join-Path $TestDrive 'stdout.txt')
+            $process.ExitCode | Should -Be 4
+            Get-Content (Join-Path $TestDrive 'stderr.txt') -Raw | Should -Match 'DeskScope'
         }
         finally { Remove-Item -Path Env:\DESKSCOPE_TOKEN -ErrorAction SilentlyContinue }
         @(Get-ChildItem $out -Filter 'fleet-*.json').Count | Should -Be 1
