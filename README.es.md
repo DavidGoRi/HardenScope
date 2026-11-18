@@ -2,7 +2,7 @@
 
 **Auditoría de bastionado de solo lectura para equipos Windows.** Un script de PowerShell revisa 33 ajustes de seguridad según los CIS Benchmarks y la línea base de seguridad de Microsoft, le pone al equipo una nota de 0 a 100 y genera un informe HTML que explica cada fallo: el riesgo, cómo arreglarlo y el comando de PowerShell para hacerlo.
 
-[Read in English](README.md)
+**[Demo en vivo](https://davidgori.github.io/HardenScope/?lang=es)**: informes reales de 12 equipos ficticios auditados dos veces, con un mes de diferencia. · [Read in English](README.md)
 
 ![Informe de HardenScope de un equipo ficticio](docs/es/report.png)
 
@@ -34,6 +34,8 @@ La mayoría de las empresas no sabe bien cómo están configurados sus equipos h
 - **Preparado para automatizar:** `-FailOn high` devuelve el código 2 si falla algo de esa gravedad.
 
 ## Uso
+
+Descarga `HardenScope-x.y.z.zip` de la [última versión](https://github.com/DavidGoRi/HardenScope/releases/latest) (compruébalo con su `.sha256`) o clona el repositorio:
 
 ```powershell
 git clone https://github.com/DavidGoRi/HardenScope.git
@@ -97,8 +99,8 @@ Con los 12 equipos de demostración (ficticios; `demo\previous` es la misma flot
 1. ~~Auditoría local, línea base, nota e informe HTML~~
 2. ~~Varios equipos a la vez por WinRM e informe de la flota~~
 3. ~~Cambios entre dos ejecuciones~~
-4. ~~Integración con PCScope y DeskScope (un ticket por cada fallo crítico)~~ (esta versión)
-5. Versión 1.0.0 con demo en vivo
+4. ~~Integración con PCScope y DeskScope (un ticket por cada fallo crítico)~~
+5. ~~Versión 1.0.0 con demo en vivo~~
 
 Los equipos de demostración son ficticios. No publiques los informes de `output\`: describen los fallos de seguridad de un equipo real.
 

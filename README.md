@@ -1,8 +1,13 @@
 # HardenScope
 
+[![CI](https://github.com/DavidGoRi/HardenScope/actions/workflows/ci.yml/badge.svg)](https://github.com/DavidGoRi/HardenScope/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/DavidGoRi/HardenScope)](https://github.com/DavidGoRi/HardenScope/releases/latest)
+[![Live demo](https://img.shields.io/badge/live%20demo-online-2f6fdf)](https://davidgori.github.io/HardenScope/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **Read-only security hardening audit for Windows workstations.** One PowerShell script checks 33 security settings against the CIS Benchmarks and the Microsoft Security Baseline, gives the computer a score from 0 to 100 and writes an HTML report that explains every failed check: the risk, how to fix it and the PowerShell command to do it.
 
-[Leer en español](README.es.md)
+**[Live demo](https://davidgori.github.io/HardenScope/)**: real reports of 12 fictitious computers audited twice, a month apart. · [Leer en español](README.es.md)
 
 ![HardenScope report of a fictitious computer](docs/report.png)
 
@@ -30,13 +35,15 @@ Most companies have no clear picture of how their computers are configured until
 
 ## Quick start
 
-Windows 10/11 with Windows PowerShell 5.1 (already included in Windows):
+Windows 10/11 with Windows PowerShell 5.1 (already included in Windows). Download `HardenScope-x.y.z.zip` from the [latest release](https://github.com/DavidGoRi/HardenScope/releases/latest) (check it against its `.sha256`), unblock it and run:
 
 ```powershell
-git clone https://github.com/DavidGoRi/HardenScope.git
-cd HardenScope
+Unblock-File .\HardenScope-1.0.0.zip; Expand-Archive .\HardenScope-1.0.0.zip .
+cd .\HardenScope-1.0.0
 powershell -ExecutionPolicy Bypass -File .\HardenScope.ps1 -Open
 ```
+
+Or clone the repository: `git clone https://github.com/DavidGoRi/HardenScope.git`.
 
 Audit several computers over WinRM (remoting must be enabled on them; an account in their Administrators group):
 
@@ -149,7 +156,7 @@ A fact that cannot be read (because a cmdlet is missing or needs administrator r
 
 ## Tests
 
-239 Pester tests and PSScriptAnalyzer run on every push in GitHub Actions (Windows PowerShell 5.1). They cover the rule engine, the parsers (`net accounts` in English and Spanish, the Security Center product state), the collectors with mocks, a live run on the CI computer, remoting with mocks and a real WinRM run against the CI computer, the fleet summary, the comparison between audits, the PCScope and DeskScope integration, the HTML reports (including their dark mode) and the exit codes.
+263 Pester tests and PSScriptAnalyzer run on every push in GitHub Actions (Windows PowerShell 5.1). They cover the rule engine, the parsers (`net accounts` in English and Spanish, the Security Center product state), the collectors with mocks, a live run on the CI computer, remoting with mocks and a real WinRM run against the CI computer, the fleet summary, the comparison between audits, the PCScope and DeskScope integration, the HTML reports (including their dark mode), the release zip, the live demo site and the exit codes.
 
 ```powershell
 Invoke-Pester -Path .\tests
@@ -160,8 +167,21 @@ Invoke-Pester -Path .\tests
 1. ~~Local audit, baseline, score and HTML report~~
 2. ~~Several computers at once over WinRM and a fleet report~~
 3. ~~Changes between two runs (what got better, what got worse)~~
-4. ~~Integration with [PCScope](https://github.com/DavidGoRi/PCScope) (computer list) and [DeskScope](https://github.com/DavidGoRi/DeskScope) (a ticket for every critical failure)~~ (this version)
-5. Version 1.0.0 with a live demo
+4. ~~Integration with [PCScope](https://github.com/DavidGoRi/PCScope) (computer list) and [DeskScope](https://github.com/DavidGoRi/DeskScope) (a ticket for every critical failure)~~
+5. ~~Version 1.0.0 with a live demo~~
+
+Possible next steps: more rules (audit policy, Credential Guard, ASR rules), Windows Server baselines and an export to CSV.
+
+## Maintenance
+
+| Script | What it does |
+|---|---|
+| `tools/New-DemoFacts.ps1` | Writes the fictitious demo computers (fixed seeds, so the files never change by accident) |
+| `tools/Build-Demo.ps1` | Builds the live demo site in `_site/` (the Demo workflow publishes it every Monday) |
+| `tools/Build-Release.ps1` | Builds `dist/HardenScope-x.y.z.zip` and its `.sha256` |
+| `tools/Update-Screenshots.ps1` | Takes the README pictures and `docs/social-preview.png` from the demo (needs Edge) |
+
+To publish a version: change `$script:HSVersion` in `src/Report.ps1`, add its section to `CHANGELOG.md` and push a `vX.Y.Z` tag; the Release workflow builds the zip and the GitHub release.
 
 ## Part of a portfolio
 

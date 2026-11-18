@@ -1,0 +1,50 @@
+name: Demo
+
+# Publishes the live demo (real HardenScope reports of 12 fictitious
+# computers) to GitHub Pages. The weekly run regenerates it so the
+# "previous audit" stays one month old.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build demo site
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Audit the fictitious fleet twice and build the site
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\tools\Build-Demo.ps1 -OutputPath _site | Format-Table -AutoSize
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
